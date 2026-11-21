@@ -48,7 +48,7 @@ export function createGame(levelIndex=0, carriedScore=0) {
     levelIndex, phase:'ready', time:ROUND_SECONDS, score:carriedScore, levelScore:0,
     broken:0, eaten:0, combo:0, comboTimer:0, maxCombo:0,
     suspicion:0, zoomies:0, exitOpen:false, ownerAlert:false,
-    player:{x:90,y:FLOOR,vx:0,vy:0,face:1,grounded:true,hidden:false,attackTime:0,attackCooldown:0,invincible:0},
+    player:{x:62,y:FLOOR,vx:0,vy:0,face:1,grounded:true,hidden:false,attackTime:0,attackCooldown:0,invincible:0},
     owner:{x:795,y:FLOOR,dir:-1,visible:true},
     input:{left:false,right:false,crouch:false,sprint:false},
     props:config.objects.map(([kind,name,x,y,points,hp],i)=>({
