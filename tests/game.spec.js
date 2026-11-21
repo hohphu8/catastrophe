@@ -18,6 +18,8 @@ test('a real player moves and swats a nearby sturdy object, not click-to-win',as
   const afterClick=await page.evaluate(()=>window.__catastrophe.snapshot());
   expect(afterClick.broken).toBe(0);
   expect(afterClick.player.x).toBeCloseTo(before.player.x,0);
+  // A failed swat also has a short attack recovery period.
+  await page.waitForTimeout(340);
 
   await page.keyboard.down('d');
   await page.waitForTimeout(240);
