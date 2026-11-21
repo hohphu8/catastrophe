@@ -34,7 +34,7 @@ Gyos.scope('Cat',()=>{
   soundtrack.setEffectsVolume(effectsVolume());
   soundtrack.setMuted(muted());
   const levelInfo=computed(()=>LEVELS[level()]);
-  const mission=computed(()=>progress(game));
+  const mission=computed(()=>({broken:broken(),goal:LEVELS[level()].breakGoal,eaten:eaten(),fishGoal:LEVELS[level()].fishGoal}));
   const comboLabel=computed(()=>combo()>1?'×'+combo():'—');
   const dangerLabel=computed(()=>suspicion()>78?'SEN ĐANG NỔI ĐIÊN!':suspicion()>44?'Có biến! Trốn lẹ!':'CHƯA BỊ PHÁT HIỆN');
   const statusType=computed(()=>alert()?'danger':exitOpen()?'ready':'normal');
