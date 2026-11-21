@@ -18,7 +18,7 @@ test('levels define playable geography, unique objects and fish',()=>{
     const g=createGame(i);
     assert.equal(g.phase,'ready');
     assert.equal(g.props.length,8);
-    assert.equal(g.player.x,90);
+    assert.equal(g.player.x,62);
     assert.equal(g.player.y,FLOOR);
     assert.ok(g.fish.length>=2);
     assert.equal(new Set(g.props.map(p=>p.id)).size,g.props.length);
@@ -39,7 +39,7 @@ test('cat actually needs movement; clicking is not a free break',()=>{
   setInput(g,'right',true);
   advance(g,.22);
   setInput(g,'right',false);
-  assert.ok(g.player.x>125);
+  assert.ok(g.player.x>100);
   assert.equal(g.broken,0);
 });
 
