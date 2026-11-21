@@ -1,78 +1,149 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, ROOMS, startRound, swat, hide, tick, roomProgress, DURATION } from '../src/model.js';
+import {
+  LEVELS, FLOOR, PLATFORMS, ROUND_SECONDS, createGame, start, tick,
+  setInput, jump, attack, progress, canHide
+} from '../src/model.js';
 
-test('rooms have stable unique item ids and positions', () => {
-  for (const room of ROOMS) {
-    assert.equal(room.things.length, 10);
-    assert.equal(new Set(room.things.map(item => item.id)).size, 10);
-    assert.ok(room.things.every(item => item.x > 0 && item.x < 1000 && item.y > 0 && item.y < 560));
+function advance(game,seconds,dt=1/60){
+  const events=[];
+  for(let i=0;i<Math.ceil(seconds/dt);i++)events.push(...tick(game,dt));
+  return events;
+}
+
+test('levels define playable geography, unique objects and fish',()=>{
+  assert.equal(LEVELS.length,3);
+  assert.equal(PLATFORMS.length,2);
+  for(let i=0;i<LEVELS.length;i++){
+    const g=createGame(i);
+    assert.equal(g.phase,'ready');
+    assert.equal(g.props.length,8);
+    assert.equal(g.player.x,90);
+    assert.equal(g.player.y,FLOOR);
+    assert.ok(g.fish.length>=2);
+    assert.equal(new Set(g.props.map(p=>p.id)).size,g.props.length);
+    assert.ok(g.props.every(p=>p.x>=0&&p.x<=960&&p.y>=320&&p.y<=FLOOR));
   }
-  assert.throws(() => createGame(99), RangeError);
+  assert.throws(()=>createGame(-1),RangeError);
+  assert.throws(()=>createGame(999),RangeError);
 });
 
-test('swats require an active game, cannot double score and award combo', () => {
-  const game = createGame();
-  assert.equal(swat(game, 'cup'), null);
-  assert.equal(startRound(game), true);
-  assert.equal(startRound(game), false);
-  const first = swat(game, 'cup');
-  assert.equal(first.gain, 95);
-  assert.equal(swat(game, 'cup'), null);
-  const second = swat(game, 'vase');
-  assert.equal(second.combo, 2);
-  assert.equal(second.gain, 360);
-  assert.equal(game.score, 455);
-  assert.equal(roomProgress(game), 2);
-  tick(game, 0.05);
-  assert.ok(game.suspicion < 34);
+test('cat actually needs movement; clicking is not a free break',()=>{
+  const g=createGame();
+  assert.equal(attack(g),null);
+  assert.equal(start(g),true);
+  assert.equal(start(g),false);
+  assert.equal(g.broken,0);
+  assert.equal(attack(g).miss,true);
+  assert.equal(g.broken,0);
+  setInput(g,'right',true);
+  advance(g,.22);
+  setInput(g,'right',false);
+  assert.ok(g.player.x>125);
+  assert.equal(g.broken,0);
 });
 
-test('hiding lowers suspicion, costs time and has cooldown', () => {
-  const game = createGame();
-  startRound(game);
-  swat(game, 'cup');
-  swat(game, 'vase');
-  assert.equal(hide(game), true);
-  assert.equal(game.suspicion, 0);
-  assert.equal(game.timeLeft, DURATION - 2);
-  assert.equal(swat(game, 'lamp'), null);
-  assert.equal(hide(game), false);
-  for (let i = 0; i < 30; i++) tick(game, .05);
-  assert.equal(game.hiding, 0);
-  assert.ok(game.hideCooldown > 0);
+test('player jumps high enough to land on elevated shelves',()=>{
+  const g=createGame();start(g);
+  g.player.x=670;g.player.y=FLOOR;
+  assert.equal(jump(g),true);
+  const heights=[];
+  for(let i=0;i<80;i++){tick(g,1/60);heights.push(g.player.y);}
+  assert.ok(Math.min(...heights)<PLATFORMS[1].y-5);
+  assert.equal(g.player.y,PLATFORMS[1].y);
+  assert.equal(g.player.grounded,true);
 });
 
-test('all props destroyed ends round and prevents additional scoring', () => {
-  const game = createGame(1);
-  startRound(game);
-  for (const item of game.props) {
-    // Imitate evasive play between swats.
-    if (game.suspicion > 65) game.suspicion = 0;
-    swat(game, item.id);
+test('attack requires proximity and facing; sturdy props take two hits',()=>{
+  const g=createGame();start(g);
+  g.player.x=131;g.player.face=-1;
+  assert.equal(attack(g).miss,true);
+  advance(g,.3);
+  g.player.face=1;
+  const first=attack(g);
+  assert.equal(first.hits.length,1);
+  assert.equal(first.hits[0].name,'Chậu monstera');
+  assert.equal(first.hits[0].broken,false);
+  assert.equal(g.props[2].hp,1);
+  assert.equal(attack(g),null); // cooldown, no hit spam
+  advance(g,.29);
+  const second=attack(g);
+  assert.equal(second.hits[0].broken,true);
+  assert.equal(g.broken,1);
+  assert.equal(g.combo,1);
+  assert.ok(g.score>0);
+});
+
+test('combo requires execution; streak boosts speed with zoomies',()=>{
+  const g=createGame();start(g);
+  // Position cat near several objects, preserving legitimate hit constraints.
+  for(const i of [0,1,3,4]){
+    g.player.x=g.props[i].x-30;g.player.y=g.props[i].y;
+    g.player.face=1;g.player.grounded=true;
+    if(g.player.y<460)g.player.vy=0;
+    const result=attack(g);
+    assert.ok(result&&result.hits.length);
+    advance(g,.28);
   }
-  assert.equal(game.outcome, 'clean');
-  assert.equal(game.phase, 'ended');
-  assert.equal(roomProgress(game), 10);
-  assert.equal(swat(game, 'bread'), null);
+  assert.ok(g.combo>=3);
+  assert.ok(g.maxCombo>=3);
+  assert.ok(g.zoomies>0);
+  advance(g,4.2);
+  assert.equal(g.combo,0);
 });
 
-test('timer expires safely and no scoring occurs after game over', () => {
-  const game = createGame();
-  startRound(game);
-  for (let i = 0; i < DURATION * 20; i++) tick(game, 0.05);
-  assert.equal(game.phase, 'ended');
-  assert.equal(game.outcome, 'time');
-  assert.equal(game.timeLeft, 0);
-  assert.equal(swat(game, 'cup'), null);
+test('snacks must be reached and break goal opens pet door',()=>{
+  const g=createGame();start(g);
+  for(let i=0;i<5;i++)g.props[i].broken=true;
+  g.broken=5;
+  assert.equal(g.exitOpen,false);
+  g.player.x=g.fish[0].x;g.player.y=g.fish[0].y+19;
+  const events=tick(g,.02);
+  assert.ok(events.some(x=>x.kind==='fish'));
+  assert.equal(g.eaten,1);
+  assert.equal(g.exitOpen,true);
+  g.player.x=930;g.player.y=FLOOR;g.player.vy=0;
+  const done=tick(g,.02);
+  assert.equal(g.phase,'cleared');
+  assert.ok(done.some(x=>x.kind==='cleared'));
 });
 
-test('too much noise attracts the owner', () => {
-  const game = createGame();
-  startRound(game);
-  for (const item of game.props) {
-    if (game.phase === 'ended') break;
-    swat(game, item.id);
+test('owner patrol creates danger but hiding spots give protection',()=>{
+  const g=createGame();start(g);
+  g.owner.x=600;g.owner.dir=-1;g.player.x=620;g.player.y=FLOOR;
+  const hit=tick(g,.02);
+  assert.ok(hit.some(x=>x.kind==='spotted'));
+  assert.ok(g.suspicion>=27);
+  g.player.x=130;g.player.y=FLOOR;g.player.grounded=true;
+  g.owner.x=133;g.owner.dir=-1;
+  assert.equal(canHide(g),true);
+  setInput(g,'crouch',true);
+  const prior=g.suspicion;
+  tick(g,.02);
+  assert.equal(g.player.hidden,true);
+  assert.ok(g.suspicion<prior);
+});
+
+test('timer causes loss and no actions score after game over',()=>{
+  const g=createGame();start(g);
+  let events=[];
+  for(let i=0;i<ROUND_SECONDS*20+10;i++)events.push(...tick(g,.05));
+  assert.equal(g.phase,'timeout');
+  assert.equal(g.time,0);
+  assert.ok(events.some(x=>x.kind==='timeout'));
+  const score=g.score;
+  assert.equal(attack(g),null);
+  assert.equal(score,g.score);
+});
+
+test('player can be caught by ignoring suspicion',()=>{
+  const g=createGame();start(g);
+  for(let i=0;i<8;i++){
+    g.player.x=g.props[i].x-15;g.player.y=g.props[i].y;
+    g.player.face=1;
+    if(g.phase!=='playing')break;
+    attack(g);advance(g,.3);
   }
-  assert.equal(game.outcome, 'caught');
+  assert.equal(g.phase,'caught');
+  assert.ok(g.suspicion>=100);
 });
