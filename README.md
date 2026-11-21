@@ -29,6 +29,8 @@ Open **http://127.0.0.1:4230**.
 ```bash
 npm test
 npm run build
+npx playwright install chromium
+npm run test:e2e
 npm run preview
 ```
 
@@ -36,7 +38,7 @@ Preview: **http://127.0.0.1:4231**. Production output: **`dist/`**. Vite's `base
 
 ## Publish on GitHub Pages
 
-The included GitHub Actions workflow (`.github/workflows/pages.yml`) installs dependencies, runs Node tests, builds, and uploads `dist/` to Pages on each push to `main`.
+The included GitHub Actions workflow (`.github/workflows/pages.yml`) installs dependencies, runs Node tests, builds, tests real gameplay in Chromium, and uploads `dist/` to Pages on each push to `main`. If Pages is not enabled yet, tests/build still pass and deployment is skipped with an explanatory notice.
 
 1. Open repository **Settings → Pages**.
 2. Under **Build and deployment**, choose **Source: GitHub Actions**.
