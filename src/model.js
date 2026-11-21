@@ -67,7 +67,7 @@ export function canHide(game){
 }
 export function jump(game) {
   if(game.phase!=='playing'||!game.player.grounded||game.player.hidden)return false;
-  game.player.vy=-625;
+  game.player.vy=-690;
   game.player.grounded=false;
   return true;
 }
