@@ -120,6 +120,7 @@ export function tick(game, seconds) {
   if (game.phase !== 'playing') return;
   const dt = Math.min(0.05, Math.max(0, Number(seconds) || 0));
   game.timeLeft = Math.max(0, game.timeLeft - dt);
+  if (game.timeLeft < 0.000001) game.timeLeft = 0; // Avoid floating-point remnants after 72 seconds.
   game.hideCooldown = Math.max(0, game.hideCooldown - dt);
   game.hiding = Math.max(0, game.hiding - dt);
   game.comboTimer = Math.max(0, game.comboTimer - dt);
