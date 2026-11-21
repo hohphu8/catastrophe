@@ -16,7 +16,7 @@ test('mounts GyosJS, starts game and swats from an accessible target', async ({ 
   const state = await page.evaluate(() => window.__catastrophe.getState());
   expect(state.score).toBeGreaterThan(0);
   expect(state.props[0].state).not.toBe('idle');
-  await expect(page.locator('.damage .stat-main')).not.toContainText('0 PTS');
+  await expect(page.locator('.damage .stat-main')).not.toHaveText('0 PTS');
   expect(errors).toEqual([]);
 });
 
@@ -45,4 +45,18 @@ test('mobile layout keeps target controls accessible', async ({ page }) => {
   await page.locator('.target').first().click();
   await page.waitForFunction(() => window.__catastrophe?.getState().attacks >= 1);
   expect((await page.evaluate(() => window.__catastrophe.getState())).score).toBeGreaterThan(0);
+});
+
+test('getting caught shows the outcome and saves best score', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Bắt đầu phá thôi/ }).click();
+  await page.evaluate(() => {
+    const game = window.__catastrophe.getState();
+    for (const item of game.props.slice(0, 6)) window.__catastrophe.swat(item.id);
+  });
+  await expect(page.locator('.end-overlay')).toBeVisible();
+  await expect(page.locator('.end-overlay h2')).toContainText('SEN BẮT QUẢ TANG');
+  const points = await page.evaluate(() => window.__catastrophe.score());
+  expect(points).toBeGreaterThan(0);
+  await expect(page.locator('.best-score')).not.toHaveText('0');
 });
