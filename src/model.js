@@ -1,134 +1,192 @@
-// Deterministic gameplay rules. Canvas and GyosJS are deliberately kept out of this file.
-export const WIDTH = 1000;
-export const HEIGHT = 560;
-export const DURATION = 72;
-
-const prop = (id, name, emoji, x, y, value, kind = 'small') =>
-  ({ id, name, emoji, x, y, value, kind });
-
-export const ROOMS = [
-  {
-    id: 'living', name: 'Phòng khách', subtitle: 'The living room', number: '01',
-    tagline: 'Mọi thứ ở đây đều rất… dễ vỡ.',
-    accent: '#fcad78', sky: '#fbe9d8',
-    things: [
-      prop('fern', 'Chậu cây vô tội', '🪴', 128, 318, 130),
-      prop('cup', 'Ly cà phê của sen', '☕', 305, 354, 95),
-      prop('vase', 'Bình hoa gia truyền', '🏺', 435, 273, 180),
-      prop('lamp', 'Đèn ngủ sang chảnh', '💡', 640, 341, 145),
-      prop('books', 'Sách chưa bao giờ đọc', '📚', 777, 259, 110),
-      prop('frame', 'Khung ảnh cưới', '🖼️', 862, 183, 200),
-      prop('snack', 'Bánh quy mới mua', '🍪', 470, 357, 85),
-      prop('bear', 'Gấu bông đáng ngờ', '🧸', 567, 431, 80),
-      prop('remote', 'Điều khiển TV', '🎮', 342, 431, 90),
-      prop('fish', 'Bể cá của sen', '🐠', 822, 353, 220)
-    ]
+// Catastrophe 2 — deterministic game rules, independent of rendering and GyosJS.
+export const W = 960, H = 540, FLOOR = 464, ROUND_SECONDS = 95;
+export const PLATFORMS = Object.freeze([
+  { x: 235, y: 348, w: 235 }, { x: 575, y: 328, w: 235 }
+]);
+export const HIDE_SPOTS = Object.freeze([{ x: 82, w: 127 }, { x: 464, w: 107 }]);
+export const LEVELS = [
+  { name: 'Phòng khách', subtitle: 'Một chiếc ly không bao giờ biết sợ', theme: 'living',
+    objective: 'Đập 5 món · Ăn 1 cá · Trốn ra cửa',
+    ownerSpeed: 83, ownerVision: 128, breakGoal: 5, fishGoal: 1,
+    objects: [
+      ['vase','Bình hoa',300,348,110,1], ['mug','Cốc cà phê',414,348,80,1],
+      ['plant','Chậu monstera',157,464,125,2], ['lamp','Đèn ngủ',633,328,150,1],
+      ['books','Chồng sách',744,328,100,1], ['clock','Đồng hồ',843,464,110,2],
+      ['frame','Khung ảnh',510,464,130,1], ['ball','Bóng len',360,464,70,1]
+    ],
+    fish: [[342,297],[688,277]]
   },
-  {
-    id: 'kitchen', name: 'Nhà bếp', subtitle: 'The kitchen', number: '02',
-    tagline: 'Nếu không được ăn pate thì không ai được ăn.',
-    accent: '#c8dca0', sky: '#e4f0d9',
-    things: [
-      prop('bread', 'Bánh mì nóng hổi', '🥖', 170, 337, 85),
-      prop('glass', 'Ly thủy tinh', '🥛', 297, 337, 115),
-      prop('cake', 'Bánh sinh nhật', '🎂', 421, 333, 180),
-      prop('pot', 'Nồi canh của sen', '🍲', 545, 331, 140),
-      prop('fruit', 'Rổ trái cây', '🍎', 670, 337, 95),
-      prop('plates', 'Bát đĩa sứ', '🍽️', 786, 253, 180),
-      prop('mug', 'Cốc trà sữa', '🧋', 891, 338, 110),
-      prop('spoon', 'Muỗng mạ vàng', '🥄', 347, 428, 80),
-      prop('jar', 'Hũ dưa muối', '🫙', 742, 432, 135),
-      prop('herb', 'Cây húng quế', '🌿', 157, 247, 85)
-    ]
+  { name: 'Nhà bếp', subtitle: 'Có mùi cá nhưng mà cũng có sen', theme: 'kitchen',
+    objective: 'Đập 6 món · Ăn 1 cá · Trốn ra cửa',
+    ownerSpeed: 105, ownerVision: 155, breakGoal: 6, fishGoal: 1,
+    objects: [
+      ['mug','Cốc sữa',145,464,80,1], ['pot','Nồi canh',308,348,165,2],
+      ['cake','Bánh kem',423,348,110,1], ['plant','Cây gia vị',513,464,100,1],
+      ['vase','Hũ gốm',621,328,140,2], ['books','Đĩa sứ',734,328,145,1],
+      ['clock','Đồng hồ bếp',837,464,125,1], ['ball','Quả cam',377,464,75,1]
+    ],
+    fish: [[385,297],[750,277]]
   },
-  {
-    id: 'studio', name: 'Góc làm việc', subtitle: 'The home office', number: '03',
-    tagline: 'Deadline là gì? Mèo chỉ biết đạp bàn phím.',
-    accent: '#b7b6ee', sky: '#e3e5f9',
-    things: [
-      prop('keyboard', 'Bàn phím cơ', '⌨️', 274, 355, 150),
-      prop('monitor', 'Màn hình 4K', '🖥️', 426, 286, 250),
-      prop('coffee', 'Cà phê đêm', '☕', 566, 356, 100),
-      prop('papers', 'Hợp đồng quan trọng', '📄', 693, 353, 125),
-      prop('trophy', 'Cúp nhân viên tốt', '🏆', 788, 229, 170),
-      prop('plant', 'Cây cảnh công sở', '🪴', 169, 335, 105),
-      prop('router', 'Cục Wi-Fi', '📡', 901, 345, 175),
-      prop('lamp', 'Đèn học', '💡', 124, 240, 115),
-      prop('headphones', 'Tai nghe chống ồn', '🎧', 704, 435, 125),
-      prop('fish', 'Đồ ăn của mèo', '🥫', 468, 436, 75)
-    ]
+  { name: 'Góc làm việc', subtitle: 'Deadline của sen, dopamine của mèo', theme: 'office',
+    objective: 'Đập 6 món · Ăn 2 cá · Trốn ra cửa',
+    ownerSpeed: 120, ownerVision: 170, breakGoal: 6, fishGoal: 2,
+    objects: [
+      ['mug','Cốc cà phê',150,464,85,1], ['keyboard','Bàn phím cơ',300,348,160,2],
+      ['monitor','Màn hình',418,348,250,2], ['plant','Chậu cây',525,464,110,1],
+      ['lamp','Đèn học',627,328,150,1], ['books','Tập tài liệu',755,328,130,1],
+      ['clock','Đồng hồ báo thức',833,464,145,2], ['ball','Cuộn dây sạc',377,464,80,1]
+    ],
+    fish: [[354,297],[695,277],[520,417]]
   }
 ];
+export const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
 
-export function createGame(roomIndex = 0) {
-  if (!Number.isInteger(roomIndex) || roomIndex < 0 || roomIndex >= ROOMS.length)
-    throw new RangeError('Unknown room');
+export function createGame(levelIndex=0, carriedScore=0) {
+  if(!Number.isInteger(levelIndex)||!LEVELS[levelIndex]) throw new RangeError('Invalid level');
+  const config=LEVELS[levelIndex];
   return {
-    roomIndex, phase: 'ready', score: 0, suspicion: 0, timeLeft: DURATION,
-    combo: 0, comboTimer: 0, bestCombo: 0, attacks: 0,
-    hiding: 0, hideCooldown: 0, outcome: null,
-    props: ROOMS[roomIndex].things.map(p => ({
-      ...p, originX: p.x, originY: p.y, state: 'idle',
-      vx: 0, vy: 0, spin: 0, angle: 0, hitGround: false
-    }))
+    levelIndex, phase:'ready', time:ROUND_SECONDS, score:carriedScore, levelScore:0,
+    broken:0, eaten:0, combo:0, comboTimer:0, maxCombo:0,
+    suspicion:0, zoomies:0, exitOpen:false, ownerAlert:false,
+    player:{x:90,y:FLOOR,vx:0,vy:0,face:1,grounded:true,hidden:false,attackTime:0,attackCooldown:0,invincible:0},
+    owner:{x:795,y:FLOOR,dir:-1,visible:true},
+    input:{left:false,right:false,crouch:false,sprint:false},
+    props:config.objects.map(([kind,name,x,y,points,hp],i)=>({
+      id:'prop-'+i,kind,name,x,y,points,hp,maxHp:hp,broken:false,flash:0
+    })),
+    fish:config.fish.map(([x,y],i)=>({id:'fish-'+i,x,y,eaten:false,phase:i*1.7}))
   };
 }
-
-export function startRound(game) {
-  if (game.phase !== 'ready') return false;
-  game.phase = 'playing';
+export function start(game){if(game.phase!=='ready')return false;game.phase='playing';return true;}
+export function setInput(game,key,pressed) {
+  if(!(key in game.input))return;
+  game.input[key]=!!pressed;
+}
+export function canHide(game){
+  return game.player.grounded && HIDE_SPOTS.some(z=>game.player.x>=z.x&&game.player.x<=z.x+z.w);
+}
+export function jump(game) {
+  if(game.phase!=='playing'||!game.player.grounded||game.player.hidden)return false;
+  game.player.vy=-625;
+  game.player.grounded=false;
   return true;
 }
-
-export function endRound(game, reason) {
-  if (game.phase !== 'playing') return;
-  game.phase = 'ended';
-  game.outcome = reason;
+export function breakableInRange(game) {
+  const player=game.player;
+  return game.props.filter(p=>!p.broken&&Math.abs(p.x-player.x)<=85&&
+    Math.abs(p.y-player.y)<=75 && (p.x-player.x)*player.face>=-23)
+    .sort((a,b)=>Math.abs(a.x-player.x)-Math.abs(b.x-player.x));
 }
-
-export function swat(game, id, chain = false) {
-  if (game.phase !== 'playing' || (!chain && game.hiding > 0)) return null;
-  const item = game.props.find(p => p.id === id && p.state === 'idle');
-  if (!item) return null;
-  game.combo = game.comboTimer > 0 ? Math.min(game.combo + 1, 9) : 1;
-  game.bestCombo = Math.max(game.bestCombo, game.combo);
-  game.comboTimer = 3.1;
-  const gain = item.value * game.combo;
-  game.score += gain;
-  game.attacks++;
-  game.suspicion = Math.min(100, game.suspicion + (chain ? 6 : 17));
-  item.state = 'flying';
-  item.vx = (chain ? 120 : 175) * (game.attacks % 2 ? 1 : -1);
-  item.vy = -240 - (game.attacks % 4) * 26;
-  item.spin = (game.attacks % 2 ? 1 : -1) * (2.6 + game.attacks % 3);
-  if (game.props.every(p => p.state !== 'idle')) endRound(game, 'clean');
-  else if (game.suspicion >= 100) endRound(game, 'caught');
-  return { item, gain, combo: game.combo, chain };
+export function attack(game) {
+  if(game.phase!=='playing'||game.player.attackCooldown>0||game.player.hidden)return null;
+  const p=game.player;
+  p.attackCooldown=.27;p.attackTime=.23;
+  const targets=breakableInRange(game).slice(0,2);
+  let total=0;
+  const hits=[];
+  for(const item of targets){
+    item.hp--;item.flash=.24;
+    if(item.hp===0){
+      item.broken=true;game.broken++;
+      game.combo=game.comboTimer>0?Math.min(9,game.combo+1):1;
+      game.comboTimer=4.1; game.maxCombo=Math.max(game.maxCombo,game.combo);
+      const points=item.points*game.combo;total+=points;
+      game.levelScore+=points;game.score+=points;
+      if(game.combo>=3)game.zoomies=5.0;
+      hits.push({id:item.id,kind:item.kind,x:item.x,y:item.y,points,broken:true,combo:game.combo,name:item.name});
+    }else{
+      hits.push({id:item.id,kind:item.kind,x:item.x,y:item.y,points:0,broken:false,combo:game.combo,name:item.name});
+    }
+  }
+  game.suspicion=clamp(game.suspicion+(targets.length?10+targets.length*4:2),0,100);
+  if(game.suspicion>=100)game.phase='caught';
+  updateExit(game);
+  return {hits,miss:hits.length===0,total};
 }
-
-export function hide(game) {
-  if (game.phase !== 'playing' || game.hiding > 0 || game.hideCooldown > 0 ||
-      game.suspicion < 1 || game.timeLeft <= 2) return false;
-  game.suspicion = Math.max(0, game.suspicion - 48);
-  game.hiding = 1.25;
-  game.hideCooldown = 9;
-  game.timeLeft = Math.max(0, game.timeLeft - 2);
-  return true;
+export function updateExit(game){
+  const cfg=LEVELS[game.levelIndex];
+  game.exitOpen=game.broken>=cfg.breakGoal&&game.eaten>=cfg.fishGoal;
 }
-
-export function tick(game, seconds) {
-  if (game.phase !== 'playing') return;
-  const dt = Math.min(0.05, Math.max(0, Number(seconds) || 0));
-  game.timeLeft = Math.max(0, game.timeLeft - dt);
-  if (game.timeLeft < 0.000001) game.timeLeft = 0; // Avoid floating-point remnants after 72 seconds.
-  game.hideCooldown = Math.max(0, game.hideCooldown - dt);
-  game.hiding = Math.max(0, game.hiding - dt);
-  game.comboTimer = Math.max(0, game.comboTimer - dt);
-  if (game.comboTimer === 0) game.combo = 0;
-  game.suspicion = Math.max(0, game.suspicion - dt * 4.6);
-  if (game.timeLeft <= 0) endRound(game, 'time');
+export function tick(game,delta){
+  const events=[];
+  if(game.phase!=='playing')return events;
+  // Fixed substeps for consistent collisions even on slow devices.
+  let left=clamp(Number(delta)||0,0,.08);
+  while(left>0){
+    const dt=Math.min(.016,left);left-=dt;
+    simulate(game,dt,events);
+    if(game.phase!=='playing')break;
+  }
+  return events;
 }
+function simulate(game,dt,events){
+  const p=game.player, level=LEVELS[game.levelIndex];
+  game.time=Math.max(0,game.time-dt);
+  if(game.time<.00001)game.time=0;
+  if(game.time===0){game.phase='timeout';events.push({kind:'timeout'});return;}
+  p.attackTime=Math.max(0,p.attackTime-dt);
+  p.attackCooldown=Math.max(0,p.attackCooldown-dt);
+  p.invincible=Math.max(0,p.invincible-dt);
+  game.comboTimer=Math.max(0,game.comboTimer-dt);
+  if(game.comboTimer===0)game.combo=0;
+  game.zoomies=Math.max(0,game.zoomies-dt);
+  for(const item of game.props)item.flash=Math.max(0,item.flash-dt);
 
-export function roomProgress(game) {
-  return game.props.filter(p => p.state !== 'idle').length;
+  p.hidden=game.input.crouch&&canHide(game);
+  const move=Number(game.input.right)-Number(game.input.left);
+  const speed=game.zoomies>0?350:game.input.sprint?290:225;
+  p.vx=move*speed;
+  if(move!==0)p.face=move;
+  if(p.hidden)p.vx=0;
+  p.x=clamp(p.x+p.vx*dt,36,W-33);
+  const prevY=p.y;
+  p.vy=Math.min(850,p.vy+1570*dt);
+  p.y+=p.vy*dt;
+  p.grounded=false;
+  // One-way platforms: can jump through them, land from above.
+  if(p.vy>=0){
+    for(const platform of PLATFORMS){
+      if(p.x>platform.x-17&&p.x<platform.x+platform.w+17&&
+         prevY<=platform.y+3&&p.y>=platform.y){
+        p.y=platform.y;p.vy=0;p.grounded=true;break;
+      }
+    }
+    if(p.y>=FLOOR){p.y=FLOOR;p.vy=0;p.grounded=true;}
+  }
+  // Snacks are acquired by physically reaching them.
+  for(const snack of game.fish)if(!snack.eaten&&
+    Math.hypot(p.x-snack.x,p.y-(snack.y+21))<48){
+    snack.eaten=true;game.eaten++;game.score+=90;game.levelScore+=90;
+    game.suspicion=clamp(game.suspicion-8,0,100);
+    events.push({kind:'fish',x:snack.x,y:snack.y});
+  }
+  updateExit(game);
+  // Patrol AI: looks for the cat but doesn't read keyboard/click state.
+  const owner=game.owner;
+  owner.x+=owner.dir*level.ownerSpeed*dt*(game.suspicion>63?1.3:1);
+  if(owner.x<565){owner.x=565;owner.dir=1;}
+  if(owner.x>919){owner.x=919;owner.dir=-1;}
+  const dy=Math.abs(p.y-owner.y), dx=Math.abs(p.x-owner.x);
+  const inSight=dx<level.ownerVision&&dy<135&&
+    (owner.dir*(p.x-owner.x)>-45 || dx<58);
+  if(inSight&&!p.hidden){
+    game.ownerAlert=true;
+    game.suspicion=clamp(game.suspicion+(dx<50&&dy<55?105:35)*dt,0,100);
+    if(dx<43&&dy<43&&p.invincible===0){
+      game.suspicion=clamp(game.suspicion+27,0,100);
+      p.invincible=1.2;
+      events.push({kind:'spotted'});
+    }
+  }else{
+    game.ownerAlert=false;
+    game.suspicion=clamp(game.suspicion-7*dt,0,100);
+  }
+  if(game.suspicion>=100){game.phase='caught';events.push({kind:'caught'});return;}
+  if(game.exitOpen&&p.x>=915&&p.y>=FLOOR-15){
+    game.phase='cleared';events.push({kind:'cleared'});
+  }
+}
+export function progress(game){
+  const level=LEVELS[game.levelIndex];
+  return {broken:game.broken,goal:level.breakGoal,eaten:game.eaten,fishGoal:level.fishGoal};
 }
