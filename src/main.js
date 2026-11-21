@@ -1,321 +1,294 @@
 import * as Gyos from 'gyosjs/csp';
-import { createGame, startRound, swat, hide, tick, roomProgress, ROOMS, DURATION } from './model.js';
+import { W, LEVELS, ROUND_SECONDS, createGame, start, tick, jump, attack, setInput, progress, clamp } from './model.js';
 import { Scene } from './scene.js';
+import { Soundtrack } from './audio.js';
 import './style.css';
 
-const BEST_KEY = 'catastrophe.best.v1';
-const PREF_KEY = 'catastrophe.prefs.v1';
-const read = key => { try { return localStorage.getItem(key); } catch { return null; } };
-const write = (key, value) => { try { localStorage.setItem(key, value); return true; } catch { return false; } };
-const niceNumber = value => Number(value).toLocaleString('vi-VN');
+const STORE='catastrophe.v2.settings',BEST='catastrophe.v2.records';
+const read=(key)=>{try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}};
+const save=(key,value)=>{try{localStorage.setItem(key,JSON.stringify(value));return true}catch{return false}};
+const format=n=>Math.floor(Number(n)||0).toLocaleString('vi-VN');
 
-Gyos.scope('Cat', () => {
-  const signal = Gyos.signal;
-  const computed = Gyos.computed;
-  let savedBest = [0, 0, 0];
-  try {
-    const raw = JSON.parse(read(BEST_KEY) || '[]');
-    if (Array.isArray(raw)) savedBest = savedBest.map((_, i) => {
-      const n = Number(raw[i]); return Number.isSafeInteger(n) && n >= 0 && n < 1e9 ? n : 0;
-    });
-  } catch { /* Fresh player */ }
+Gyos.scope('Cat',()=>{
+  const signal=Gyos.signal,computed=Gyos.computed;
+  const stored=read(STORE)||{},record=read(BEST)||{};
+  const records={
+    best:Number.isFinite(record.best)?Math.max(0,record.best):0,
+    unlocked:clamp(Number.isInteger(record.unlocked)?record.unlocked:0,0,LEVELS.length-1)
+  };
+  let game=createGame(0),scene=null,alive=true,raf=0,previous=0,hudClock=0;
+  let pausedBeforeMenu=false,wasAlert=false,noticeTimer=0;
+  const soundtrack=new Soundtrack();
+  const abort=new AbortController();
 
-  let prefs = {};
-  try { prefs = JSON.parse(read(PREF_KEY) || '{}') || {}; } catch { /* no preferences */ }
-  let game = createGame(0), scene = null, audio = null, animationFrame = 0;
-  let alive = true, lastFrame = 0, hudTime = 0, toastClock = 0;
-  const lifetime = new AbortController();
+  const phase=signal('ready'),level=signal(0),score=signal(0),levelScore=signal(0),
+    seconds=signal(ROUND_SECONDS),suspicion=signal(0),combo=signal(0),
+    broken=signal(0),eaten=signal(0),exitOpen=signal(false),
+    zoomies=signal(false),hidden=signal(false),alert=signal(false),
+    best=signal(records.best),unlocked=signal(records.unlocked),
+    paused=signal(false),menu=signal(''),status=signal('WASD để chạy · SPACE để nhảy · J để tát đồ.'),
+    musicVolume=signal(typeof stored.music==='number'?clamp(stored.music,0,1):.68),
+    effectsVolume=signal(typeof stored.effects==='number'?clamp(stored.effects,0,1):.9),
+    muted=signal(stored.muted===true),reduced=signal(stored.reduced===true);
+  soundtrack.setMusicVolume(musicVolume());
+  soundtrack.setEffectsVolume(effectsVolume());
+  soundtrack.setMuted(muted());
+  const levelInfo=computed(()=>LEVELS[level()]);
+  const mission=computed(()=>progress(game));
+  const comboLabel=computed(()=>combo()>1?'×'+combo():'—');
+  const dangerLabel=computed(()=>suspicion()>78?'SEN ĐANG NỔI ĐIÊN!':suspicion()>44?'Có biến! Trốn lẹ!':'CHƯA BỊ PHÁT HIỆN');
+  const statusType=computed(()=>alert()?'danger':exitOpen()?'ready':'normal');
+  const controlsHint=computed(()=>hidden()?'SEN KHÔNG THẤY MÀY!':zoomies()?'ZOOMIES MODE ⚡ TĂNG TỐC!':exitOpen()?'Cửa mở rồi! Chạy sang bên phải →':'Đứng gần và đúng hướng để tát trúng đồ.');
+  const resultsTitle=computed(()=>
+    phase()==='won'?'ĐẠI HỌA TOÀN KHU!':phase()==='cleared'?'THOÁT THÀNH CÔNG!':
+    phase()==='caught'?'SEN BẮT QUẢ TANG!':'HẾT GIỜ, ĐỒ VẪN CÒN!');
+  const resultsText=computed(()=>
+    phase()==='won'?'Một con mèo, ba căn phòng, không còn chút hối lỗi.':
+    phase()==='cleared'?'Mèo đã tẩu thoát. Nhưng nhà bên cạnh vẫn còn nguyên đồ.':
+    phase()==='caught'?'Mày phá hơi hăng rồi. Lần sau núp dưới sofa nha.':
+    'Bình tĩnh thôi. Hãy kiếm combo và mở cửa sớm hơn.');
+  const roomOptions=computed(()=>LEVELS.map((l,i)=>({id:i,name:l.name,locked:i>unlocked()})));
 
-  const room = signal(0);
-  const phase = signal('ready');
-  const paused = signal(false);
-  const help = signal(false);
-  const sound = signal(prefs.sound === true);
-  const reduced = signal(prefs.reduced === true);
-  const score = signal(0);
-  const remaining = signal(DURATION);
-  const suspicion = signal(0);
-  const combo = signal(0);
-  const hiding = signal(0);
-  const cooldown = signal(0);
-  const destroyed = signal(0);
-  const targets = signal([]);
-  const best = signal(0);
-  const announcement = signal('Mọi thứ đều nguyên vẹn. Tạm thời thôi...');
-  const toast = signal('');
-  const result = signal('');
-  const roomInfo = computed(() => ROOMS[room()]);
-  const riskLabel = computed(() => suspicion() > 77 ? 'SEN SẮP TỚI!' : suspicion() > 45 ? 'Hơi bị nghi ngờ…' : 'An toàn (chắc vậy)');
-  const hidingText = computed(() => hiding() > 0 ? 'Đang núp...' : cooldown() > 0 ? 'Trốn lại sau ' + Math.ceil(cooldown()) + 's' : 'Núp sau sofa');
-  const endHeading = computed(() => result() === 'caught' ? 'SEN BẮT QUẢ TANG! 🚨' : result() === 'clean' ? 'KHÔNG CÒN GÌ ĐỂ PHÁ 🎉' : 'HẾT GIỜ RỒI! ⏰');
-  const endLine = computed(() => result() === 'caught' ? 'Bị bắt rồi. Nhưng nhìn đống đồ vỡ cũng đáng.' : result() === 'clean' ? 'Một căn phòng gọn gàng… theo định nghĩa của mèo.' : 'Sen vẫn chưa biết thủ phạm. Mày thắng về mặt đạo đức.');
-  const progressText = computed(() => destroyed() + ' / 10 món đã bay màu');
-
-  function syncUI(includeTargets = false) {
-    Gyos.batch(() => {
-      room(game.roomIndex);
-      phase(game.phase);
-      score(game.score);
-      remaining(Math.ceil(game.timeLeft));
-      suspicion(Math.round(game.suspicion));
-      combo(game.combo);
-      hiding(game.hiding);
-      cooldown(game.hideCooldown);
-      destroyed(roomProgress(game));
-      best(savedBest[game.roomIndex] || 0);
-      if (includeTargets) targets(game.props.map(item => ({
-        id: item.id, name: item.name, emoji: item.emoji, state: item.state, value: item.value
-      })));
+  function sync(){
+    const p=progress(game);
+    Gyos.batch(()=>{
+      level(game.levelIndex);phase(game.phase==='cleared'&&game.levelIndex===LEVELS.length-1?'won':game.phase);
+      score(game.score);levelScore(game.levelScore);
+      seconds(Math.ceil(game.time));suspicion(Math.round(game.suspicion));combo(game.combo);
+      broken(p.broken);eaten(p.eaten);exitOpen(game.exitOpen);
+      hidden(game.player.hidden);zoomies(game.zoomies>0);alert(game.ownerAlert);
+      best(records.best);unlocked(records.unlocked);
     });
   }
-
-  function savePrefs() {
-    write(PREF_KEY, JSON.stringify({ sound: sound(), reduced: reduced() }));
+  function notice(message,seconds=3){status(message);noticeTimer=seconds;}
+  function prefs(){
+    save(STORE,{music:musicVolume(),effects:effectsVolume(),muted:muted(),reduced:reduced()});
   }
-
-  function notify(text) {
-    announcement(text);
-    toast(text);
-    toastClock = 3.3;
+  function recordResult(){
+    if(game.score>records.best)records.best=game.score;
+    if(game.phase==='cleared')records.unlocked=Math.max(records.unlocked,Math.min(LEVELS.length-1,game.levelIndex+1));
+    if(!save(BEST,records))notice('Không lưu được kỷ lục trong trình duyệt này.');
   }
-
-  function beep(kind = 'hit') {
-    if (!sound() || document.hidden) return;
-    try {
-      const Audio = window.AudioContext || window.webkitAudioContext;
-      if (!Audio) return;
-      audio ||= new Audio();
-      if (audio.state === 'suspended') void audio.resume().catch(() => {});
-      const now = audio.currentTime;
-      const oscillator = audio.createOscillator();
-      const volume = audio.createGain();
-      oscillator.type = kind === 'alarm' ? 'sawtooth' : kind === 'hide' ? 'sine' : 'triangle';
-      oscillator.frequency.setValueAtTime(kind === 'alarm' ? 270 : kind === 'hide' ? 480 : 520, now);
-      oscillator.frequency.exponentialRampToValueAtTime(kind === 'alarm' ? 180 : kind === 'hide' ? 280 : 180, now + .17);
-      volume.gain.setValueAtTime(.0001, now);
-      volume.gain.exponentialRampToValueAtTime(.045, now + .018);
-      volume.gain.exponentialRampToValueAtTime(.0001, now + .20);
-      oscillator.connect(volume).connect(audio.destination);
-      oscillator.start(now); oscillator.stop(now + .21);
-    } catch { /* Audio errors must never affect the game. */ }
+  function finish(){
+    recordResult();scene?.effect(game.phase==='cleared'?'fish':'hit',game.player.x,game.player.y-100);
+    if(game.phase==='cleared')soundtrack.sfx('win');else soundtrack.sfx('lose');
+    soundtrack.stop();
+    clearInput();sync();
+    notice(game.phase==='cleared'?'Meow! Đã mở được đường thoát!':'Sen đã biết chuyện gì xảy ra.');
   }
-
-  function saveBest() {
-    if (game.score > savedBest[game.roomIndex]) {
-      savedBest[game.roomIndex] = game.score;
-      if (!write(BEST_KEY, JSON.stringify(savedBest)))
-        notify('Không lưu được kỷ lục trên trình duyệt này.');
+  function onEvents(events){
+    for(const event of events){
+      if(event.kind==='fish'){
+        scene.effect('fish',event.x,event.y,'+90 FISH');
+        soundtrack.sfx('fish');notice('Cá ngừ +90! Thực sự rất đáng công nhảy lên.');
+      }else if(event.kind==='spotted'){
+        scene.effect('hit',game.player.x,game.player.y-120,'SEN THẤY!');
+        soundtrack.sfx('spot');notice('SEN THẤY MÀY RỒI! CHẠY! 🏃');
+      }else if(event.kind==='caught'||event.kind==='cleared'||event.kind==='timeout'){
+        finish();
+      }
     }
   }
-
-  function finish() {
-    if (game.phase !== 'ended' || result() === game.outcome) return;
-    result(game.outcome || 'time');
-    saveBest();
-    scene.targetId = null;
-    syncUI(true);
-    if (game.outcome === 'caught') beep('alarm');
-  }
-
-  function hit(id, chain = false) {
-    if (paused() || !alive) return;
-    const event = swat(game, id, chain);
-    if (!event) return;
-    scene.burst(event.item.x, event.item.y,
-      (chain ? 'CHAIN! ' : '') + '+' + niceNumber(event.gain),
-      chain ? '#8ab4a0' : '#ff956d');
-    beep('hit');
-    const remarks = [
-      'Mèo nhìn cái ' + event.item.name.toLowerCase() + ' và chọn bạo lực.',
-      'BỐP! ' + event.item.name + ' đã rời khỏi cuộc chơi.',
-      'Sen ơi, tự nhiên đồ nó rơi đó nha. 🐾',
-      'Meow! Hoàn toàn là tai nạn có chủ đích.'
-    ];
-    notify(chain ? 'DOMINO! ' + event.item.name + ' đổ theo! ×' + event.combo :
-      remarks[game.attacks % remarks.length]);
-    syncUI(true);
-    finish();
-  }
-
-  function makeScene() {
-    const canvas = document.getElementById('world');
-    if (!canvas) return;
-    scene = new Scene(canvas, hit);
-    scene.reduced = reduced() || matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const pointer = event => {
-      if (!scene || game.phase !== 'playing' || paused() || game.hiding > 0) return;
-      const id = scene.pick(game, event);
-      if (id) queue(id);
-    };
-    const move = event => {
-      if (!scene) return;
-      scene.hoverId = game.phase === 'playing' ? scene.pick(game, event) : null;
-      canvas.style.cursor = scene.hoverId ? 'pointer' : 'default';
-    };
-    canvas.addEventListener('pointerdown', pointer, { signal: lifetime.signal });
-    canvas.addEventListener('pointermove', move, { signal: lifetime.signal });
-    canvas.addEventListener('pointerleave', () => {
-      if (scene) scene.hoverId = null;
-    }, { signal: lifetime.signal });
-    scene.draw(game);
-  }
-
-  function queue(id) {
-    if (game.phase !== 'playing' || paused() || game.hiding > 0) return;
-    if (scene?.target(game, id))
-      announcement('Mục tiêu: ' + (game.props.find(p => p.id === id)?.name || 'đồ vô tội') + '. Mèo đang tới!');
-  }
-
-  function start() {
-    if (startRound(game)) {
-      notify('Chúc may mắn. Nhất là cái đồ đạc. 😼');
-      syncUI(true);
+  function swipe(){
+    if(paused()||menu()||game.phase!=='playing')return;
+    const result=attack(game);
+    if(!result)return;
+    if(result.miss){soundtrack.sfx('hit');notice('Tát trượt! Phải đứng gần và quay mặt về phía đồ vật.',1.7);}
+    else{
+      for(const hit of result.hits){
+        scene.effect(hit.broken?'smash':'hit',hit.x,hit.y-12,
+          hit.broken?'+'+format(hit.points)+' · ×'+hit.combo:'RẮC!');
+        soundtrack.sfx(hit.broken?'break':'hit');
+      }
+      notice(result.hits.some(h=>h.broken)?
+        'BỐP! '+result.hits.map(h=>h.name).join(' + ')+' bay màu.':
+        'Đồ còn cứng đó. Tát thêm phát nữa!',2.0);
     }
+    sync();
+    if(game.phase==='caught')finish();
   }
-
-  function restart() {
-    game = createGame(game.roomIndex);
-    scene?.reset();
+  function leap(){
+    if(paused()||menu())return;
+    if(jump(game)){soundtrack.sfx('jump');scene.effect('dust',game.player.x,game.player.y); }
+  }
+  function setControl(key,down){
+    if(game.phase==='playing'&&!paused()&&!menu())setInput(game,key,down);
+    else setInput(game,key,false);
+  }
+  function clearInput(){for(const k of Object.keys(game.input))setInput(game,k,false);}
+  function pause(on=!paused()){
+    if(game.phase!=='playing')return;
+    paused(!!on);clearInput();
+    if(on){void soundtrack.suspend();notice('Mèo đang nghỉ ngơi.');}
+    else{void soundtrack.resume().catch(()=>{});previous=0;}
+  }
+  function openMenu(kind){
+    if(menu())return;
+    pausedBeforeMenu=paused();
+    if(game.phase==='playing')pause(true);
+    menu(kind);
+  }
+  function closeMenu(){
+    if(!menu())return;
+    menu('');
+    if(game.phase==='playing'&&!pausedBeforeMenu)pause(false);
+  }
+  function begin(){
+    if(!start(game))return;
     paused(false);
-    result('');
-    notify('Phòng đã được phục hồi. Mèo thì chưa hối hận.');
-    syncUI(true);
-    scene?.draw(game);
+    notice('Chạy, nhảy, tát — gom cá ngừ rồi trốn sang phải! 😼');
+    sync();
+    // start() is invoked on a real button click; audio context unlocks in this gesture.
+    void soundtrack.start().catch(()=>notice('Trình duyệt chặn âm thanh; thử click lại nút nhạc.'));
   }
-
-  function chooseRoom(index) {
-    if (game.phase === 'playing' || !Number.isInteger(index) || !ROOMS[index]) return;
-    game = createGame(index);
-    scene?.reset();
-    paused(false); result('');
-    notify(ROOMS[index].tagline);
-    syncUI(true);
-    scene?.draw(game);
+  function restart(){
+    const index=game.levelIndex,carry=Math.max(0,game.score-game.levelScore);
+    game=createGame(index,carry);
+    scene?.reset();clearInput();paused(false);menu('');previous=0;wasAlert=false;
+    soundtrack.stop();notice('Lần này không để sen bắt nhé.');
+    sync();
   }
-
-  function togglePause() {
-    if (game.phase !== 'playing') return;
-    paused(!paused());
-    if (!paused()) lastFrame = 0;
+  function startOver(){
+    game=createGame(0);scene?.reset();clearInput();paused(false);menu('');previous=0;
+    soundtrack.stop();notice('Cuộc đời mới. Cái bình mới. Mèo cũ.');sync();
   }
-
-  function useHide() {
-    if (paused() || !hide(game)) return;
-    scene.targetId = null;
-    notify('Mèo đã chui xuống gầm bàn. Không có ai ở đây hết!');
-    beep('hide');
-    syncUI();
+  function nextRoom(){
+    if(game.phase!=='cleared')return;
+    if(game.levelIndex===LEVELS.length-1){startOver();return;}
+    game=createGame(game.levelIndex+1,game.score);
+    scene?.reset();clearInput();paused(false);menu('');previous=0;wasAlert=false;
+    notice('Chào mừng đến '+LEVELS[game.levelIndex].name+'!');sync();
   }
-
-  function toggleSound() {
-    sound(!sound());
-    savePrefs();
-    if (sound()) beep('hide');
-    else if (audio?.state === 'running') void audio.suspend().catch(() => {});
+  function selectRoom(index){
+    if(game.phase==='playing'||index>records.unlocked||index<0||!LEVELS[index])return;
+    game=createGame(index,0);scene?.reset();clearInput();paused(false);menu('');previous=0;
+    soundtrack.stop();notice(LEVELS[index].subtitle);sync();
   }
-
-  function toggleMotion() {
-    reduced(!reduced());
-    if (scene) scene.reduced = reduced() || matchMedia('(prefers-reduced-motion: reduce)').matches;
-    savePrefs();
+  function setMusic(event){
+    const amount=clamp(Number(event.target.value)/100);
+    musicVolume(amount);soundtrack.setMusicVolume(amount);prefs();
+    if(amount>0&&muted()){muted(false);soundtrack.setMuted(false);prefs();}
   }
-
-  async function share() {
-    const message = '🐈 Catastrophe: tao vừa phá ' + destroyed() + '/10 món, kiếm ' +
-      niceNumber(score()) + ' điểm tại ' + ROOMS[room()].name + '! Mày phá được bao nhiêu? ' +
-      new URL('./', location.href).href;
-    try {
-      await navigator.clipboard.writeText(message);
-      notify('Đã copy lời thách đấu. Đi khoe chiến tích đi! 😼');
-    } catch {
-      window.prompt('Copy lời thách đấu này:', message);
+  function setEffects(event){
+    const amount=clamp(Number(event.target.value)/100);
+    effectsVolume(amount);soundtrack.setEffectsVolume(amount);prefs();
+    if(amount>0){if(muted()){muted(false);soundtrack.setMuted(false);}soundtrack.sfx('fish');}
+  }
+  function toggleSound(){
+    const next=!muted();muted(next);soundtrack.setMuted(next);prefs();
+    if(!next)void soundtrack.resume().then(()=>soundtrack.sfx('fish')).catch(()=>{});
+  }
+  function toggleMotion(){
+    reduced(!reduced());if(scene)scene.reduced=reduced()||matchMedia('(prefers-reduced-motion:reduce)').matches;prefs();
+  }
+  function codeKey(event,down){
+    if(event.isComposing||event.ctrlKey||event.metaKey||event.altKey)return;
+    if(event.target instanceof Element&&event.target.closest('input,textarea,select'))return;
+    const k=event.key.toLowerCase();
+    if(menu()){if(k==='escape'&&!down)closeMenu();return;}
+    if(['arrowleft','arrowright','arrowup',' ','j','k','x','a','d','w','c','s','shift','p','escape'].includes(k))event.preventDefault();
+    if(k==='a'||k==='arrowleft')setControl('left',down);
+    if(k==='d'||k==='arrowright')setControl('right',down);
+    if(k==='c'||k==='s'||k==='arrowdown')setControl('crouch',down);
+    if(k==='shift')setControl('sprint',down);
+    if(!down)return;
+    if(k==='w'||k===' '||k==='arrowup'){if(!event.repeat)leap();}
+    if(k==='j'||k==='k'||k==='x'){if(!event.repeat)swipe();}
+    if(k==='p'||k==='escape'){if(!event.repeat)pause();}
+  }
+  function bindButtons(){
+    // Hold controls work on touch. Pointer capture prevents stuck movement.
+    for(const [id,key] of [['mobile-left','left'],['mobile-right','right'],['mobile-hide','crouch'],['mobile-sprint','sprint']]){
+      const el=document.getElementById(id);if(!el)continue;
+      el.addEventListener('pointerdown',e=>{
+        if(game.phase!=='playing')return;
+        e.preventDefault();el.setPointerCapture(e.pointerId);setControl(key,true);
+      },{signal:abort.signal});
+      const release=()=>setControl(key,false);
+      el.addEventListener('pointerup',release,{signal:abort.signal});
+      el.addEventListener('pointercancel',release,{signal:abort.signal});
+      el.addEventListener('lostpointercapture',release,{signal:abort.signal});
     }
+    // Canvas clicks attack only from the cat's actual location.
+    const canvas=document.getElementById('world');
+    canvas?.addEventListener('pointerdown',event=>{
+      if(game.phase!=='playing'||paused()||menu())return;
+      const r=canvas.getBoundingClientRect();
+      const v=scene.viewW;
+      const clickX=scene.camera+(event.clientX-r.left)/r.width*v;
+      if(Math.abs(clickX-game.player.x)<170)
+        game.player.face=clickX>=game.player.x?1:-1;
+      swipe();
+    },{signal:abort.signal});
   }
-
-  function keyboard(event) {
-    if (help()) { if (event.key === 'Escape') help(false); return; }
-    if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
-    if (event.target instanceof Element && event.target.closest('input, textarea, select')) return;
-    const key = event.key.toLowerCase();
-    if (key === 'h') useHide();
-    if (key === 'p') togglePause();
-    const digit = /^([0-9])$/.exec(key);
-    if (digit && game.phase === 'playing') {
-      const i = Number(digit[1]) === 0 ? 9 : Number(digit[1]) - 1;
-      const item = game.props[i];
-      if (item) queue(item.id);
-    }
+  async function share(){
+    const story=`🐈 Catastrophe 2: tao phá ${broken()}/${LEVELS[level()].objects.length} đồ ở ${LEVELS[level()].name} và kiếm ${format(score())} điểm! Thử vượt tao xem: ${new URL('./',location.href).href}`;
+    try{await navigator.clipboard.writeText(story);notice('Đã copy chiến tích. Đem đi cà khịa bạn bè!');}
+    catch{window.prompt('Copy chiến tích này:',story);}
   }
-
-  function frame(now) {
-    if (!alive || !scene) return;
-    const dt = lastFrame ? Math.min((now - lastFrame) / 1000, .05) : 0;
-    lastFrame = now;
-    if (!document.hidden) {
-      if (!paused()) {
-        tick(game, dt);
-        scene.update(game, dt);
-        if (game.phase === 'ended') finish();
-      }
-      scene.draw(game);
-      hudTime += dt;
-      if (hudTime >= .12) { syncUI(); hudTime = 0; }
-      if (toastClock > 0) {
-        toastClock -= dt;
-        if (toastClock <= 0) toast('');
-      }
-    }
-    animationFrame = requestAnimationFrame(frame);
-  }
-
-  syncUI(true);
-  return {
-    room, phase, paused, help, sound, reduced, score, remaining, suspicion,
-    combo, hiding, cooldown, destroyed, targets, best, announcement, toast,
-    result, roomInfo, riskLabel, hidingText, endHeading, endLine, progressText,
-    roomList: () => ROOMS,
-    format: niceNumber,
-    riskStyle: () => '--risk:' + suspicion() + '%',
-    scoreLabel: () => niceNumber(score()),
-    bestLabel: () => niceNumber(best()),
-    comboLabel: () => combo() > 1 ? '×' + combo() : '—',
-    targetClass: item => item.state === 'idle' ? 'target' : 'target destroyed',
-    roomClass: index => room() === index ? 'room-chip selected' : 'room-chip',
-    start, restart, chooseRoom, queue, togglePause, useHide,
-    toggleSound, toggleMotion, share,
-    showHelp() { if (game.phase === 'playing') paused(true); help(true); },
-    closeHelp() { help(false); },
-    onMount() {
-      makeScene();
-      const signal = lifetime.signal;
-      window.addEventListener('keydown', keyboard, { signal });
-      document.addEventListener('visibilitychange', () => {
-        if (document.hidden) {
-          if (game.phase === 'playing') paused(true);
-          if (audio?.state === 'running') void audio.suspend().catch(() => {});
+  function loop(now){
+    if(!alive)return;
+    const delta=previous?Math.min(.05,(now-previous)/1000):0;
+    previous=now;
+    if(!document.hidden&&scene){
+      if(game.phase==='playing'&&!paused()&&!menu()){
+        const events=tick(game,delta);
+        if(game.ownerAlert&&!wasAlert&&events.every(e=>e.kind!=='spotted')){
+          soundtrack.sfx('spot');notice('Á! Sen vừa quay đầu nhìn về phía mày!');
         }
-        lastFrame = 0;
-      }, { signal });
-      const media = matchMedia('(prefers-reduced-motion: reduce)');
-      media.addEventListener('change', () => {
-        if (scene) scene.reduced = reduced() || media.matches;
-      }, { signal });
-      animationFrame = requestAnimationFrame(frame);
-      if (import.meta.env.DEV) window.__catastrophe = {
-        getState: () => structuredClone(game),
-        score: () => score(),
-        swat: id => hit(id, false),
-        finish: () => { game.phase = 'ended';game.outcome = 'time';finish(); }
+        wasAlert=game.ownerAlert;
+        onEvents(events);
+        soundtrack.update();
+      }
+      scene.update(paused()?0:delta,game);
+      scene.render(game);
+      hudClock+=delta;
+      if(hudClock>=.095){sync();hudClock=0;}
+      if(noticeTimer>0){noticeTimer-=delta;if(noticeTimer<=0)status(controlsHint());}
+    }
+    raf=requestAnimationFrame(loop);
+  }
+
+  sync();
+  return {
+    phase,level,score,levelScore,seconds,suspicion,combo,broken,eaten,exitOpen,
+    hidden,zoomies,alert,best,unlocked,paused,menu,status,
+    musicVolume,effectsVolume,muted,reduced,
+    levelInfo,mission,comboLabel,dangerLabel,statusType,controlsHint,resultsTitle,resultsText,roomOptions,
+    format,scoreText:()=>format(score()),bestText:()=>format(best()),
+    dangerStyle:()=>'width:'+suspicion()+'%',
+    musicPercent:()=>Math.round(musicVolume()*100),effectsPercent:()=>Math.round(effectsVolume()*100),
+    isResult:()=>['cleared','caught','timeout','won'].includes(phase()),
+    roomStyle:r=>r.locked?'room-card locked':r.id===level()?'room-card current':'room-card',
+    leap,swipe,begin,restart,startOver,nextRoom,selectRoom,share,toggleSound,
+    pauseClick:()=>pause(),showHelp:()=>openMenu('help'),showSettings:()=>openMenu('settings'),
+    closeMenu,setMusic,setEffects,toggleMotion,
+    onMount(){
+      const canvas=document.getElementById('world');
+      if(!canvas)return;
+      scene=new Scene(canvas);
+      scene.reduced=reduced()||matchMedia('(prefers-reduced-motion:reduce)').matches;
+      bindButtons();
+      const media=matchMedia('(prefers-reduced-motion:reduce)');
+      media.addEventListener('change',()=>{if(scene)scene.reduced=reduced()||media.matches;},{signal:abort.signal});
+      window.addEventListener('keydown',e=>codeKey(e,true),{signal:abort.signal});
+      window.addEventListener('keyup',e=>codeKey(e,false),{signal:abort.signal});
+      window.addEventListener('blur',()=>{clearInput();if(game.phase==='playing')pause(true);},{signal:abort.signal});
+      document.addEventListener('visibilitychange',()=>{
+        if(document.hidden){clearInput();if(game.phase==='playing')pause(true);}
+        previous=0;
+      },{signal:abort.signal});
+      if(import.meta.env.DEV)window.__catastrophe={
+        snapshot:()=>structuredClone(game),
+        reset:restart,begin,swipe,leap,
+        press:(key,on)=>setControl(key,on)
       };
+      raf=requestAnimationFrame(loop);
     },
-    onUnmount() {
-      alive = false;
-      lifetime.abort();
-      cancelAnimationFrame(animationFrame);
-      if (audio) void audio.close().catch(() => {});
-      if (import.meta.env.DEV) delete window.__catastrophe;
+    onUnmount(){
+      alive=false;abort.abort();cancelAnimationFrame(raf);
+      void soundtrack.close();if(import.meta.env.DEV)delete window.__catastrophe;
     }
   };
 });
-
 Gyos.mountAll();
