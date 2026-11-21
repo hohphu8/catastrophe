@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f8f2e9">
+  <meta name="description" content="Catastrophe — mèo cam vô tội đi phá đồ. Một game mini hài hước, chạy ngay trong trình duyệt, powered by GyosJS.">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+  <title>Catastrophe — one cat, zero regrets.</title>
+</head>
+<body>
+<noscript>Catastrophe cần JavaScript để chạy. Mèo đang chờ mày bật JS đó!</noscript>
+<div id="app" g-scope="Cat" g-cloak>
+  <header class="site-header wrap">
+    <a href="./" class="brand" aria-label="Catastrophe home"><span class="brand-face" aria-hidden="true">😼</span>catastrophe<span class="brand-dot">.</span></a>
+    <div class="site-strap"><span class="sparkle">✳</span> A TINY CHAOS SIMULATOR <span class="sparkle">✳</span></div>
+    <div class="header-buttons">
+      <button class="button icon-button" @click="toggleSound()" :aria-label="sound() ? 'Tắt âm thanh' : 'Bật âm thanh'" :title="sound() ? 'Tắt âm thanh' : 'Bật âm thanh'">{sound() ? '🔊' : '🔇'}</button>
+      <button class="button text-button" @click="showHelp()">? <span>Cách chơi</span></button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero" aria-label="Giới thiệu game">
+      <div>
+        <p class="eyebrow"><span class="asterisk">✹</span> SATURDAY AFTERNOON · CAT EDITION</p>
+        <h1>One cat.<br><em>Zero regrets.</em></h1>
+        <p class="hero-description">Đồ đạc sinh ra là để... nằm dưới đất. Nhập vai một boss mèo cam, quậy tung căn nhà trước khi sen phát hiện. <strong>Hoàn toàn vô tội, tất nhiên rồi.</strong></p>
+      </div>
+      <div class="hero-sticker" aria-hidden="true">
+        <span class="sticker-top">CERTIFIED</span>
+        <span class="sticker-paw">🐾</span>
+        <span class="sticker-bottom">MENACE</span>
+      </div>
+    </section>
+
+    <section class="game-shell" aria-label="Trò chơi Catastrophe">
+      <div class="shell-top">
+        <div class="shell-title">
+          <span class="live-dot"></span>
+          <span>THE CRIME SCENE</span>
+          <small> / {roomInfo().number}</small>
+        </div>
+        <div class="room-select" aria-label="Chọn phòng">
+          <button *for="info, index in roomList()" g-key="info.id" :class="roomClass(index)" :disabled="phase() === 'playing'" @click="chooseRoom(index)">{info.name}</button>
+        </div>
+      </div>
+
+      <div class="hud">
+        <div class="hud-cell damage">
+          <span class="stat-caption">THIỆT HẠI GÂY RA</span>
+          <div class="stat-main">{scoreLabel()} <small>PTS</small></div>
+        </div>
+        <div class="hud-cell">
+          <span class="stat-caption">THỜI GIAN</span>
+          <div class="stat-main">{remaining()} <small>SEC</small></div>
+        </div>
+        <div class="hud-cell">
+          <span class="stat-caption">COMBO</span>
+          <div class="stat-main combo-main">{comboLabel()} <span class="tiny-fire">✦</span></div>
+        </div>
+        <div class="hud-cell suspicion-cell">
+          <div class="risk-header">
+            <span class="stat-caption">ĐỘ NGHI NGỜ</span>
+            <strong>{suspicion()}%</strong>
+          </div>
+          <div class="risk-meter" role="progressbar" aria-label="Độ nghi ngờ của chủ" :aria-valuenow="suspicion()" aria-valuemin="0" aria-valuemax="100">
+            <span class="risk-fill" :style="riskStyle()"></span>
+          </div>
+          <small class="risk-caption">{riskLabel()}</small>
+        </div>
+      </div>
+
+      <div class="stage-wrap">
+        <div class="stage-caption">
+          <span class="stage-location">✳ {roomInfo().subtitle}</span>
+          <span class="stage-count">{progressText()}</span>
+        </div>
+        <canvas id="world" width="1000" height="560" aria-label="Căn phòng có những đồ vật có thể bấm để phá. Có thể chọn đồ vật bằng danh sách bên dưới.">Trình duyệt của mày cần hỗ trợ Canvas để hiển thị căn phòng.</canvas>
+
+        <div class="game-overlay" g-show="phase() !== 'playing' || paused()">
+          <div class="overlay-card intro-overlay" g-show="phase() === 'ready'">
+            <span class="overlay-icon">😼</span>
+            <p class="overlay-eyebrow">THE CAT HAS ENTERED THE CHAT</p>
+            <h2>Ủa, cái này<br>rớt được nè?</h2>
+            <p>72 giây. 10 món đồ. Một con mèo không hề biết hối lỗi.</p>
+            <button class="button primary big-button" @click="start()">Bắt đầu phá thôi <span>↗</span></button>
+            <small>Click đồ vật hoặc bấm các nút bên dưới · Phím 1–0</small>
+          </div>
+          <div class="overlay-card end-overlay" g-show="phase() === 'ended'">
+            <span class="overlay-icon">🐈</span>
+            <p class="overlay-eyebrow">END OF MEOWSSION</p>
+            <h2>{endHeading()}</h2>
+            <p>{endLine()}</p>
+            <div class="finish-stats">
+              <div><strong>{scoreLabel()}</strong><small>ĐIỂM</small></div>
+              <div><strong>{progressText()}</strong><small>ĐÃ PHÁ</small></div>
+            </div>
+            <div class="finish-actions">
+              <button class="button primary" @click="restart()">Thử lại ↗</button>
+              <button class="button secondary" @click="share()">Khoe chiến tích ↗</button>
+            </div>
+            <small>Thử một phòng khác nếu mày muốn đổi mục tiêu.</small>
+          </div>
+          <div class="overlay-card pause-overlay" g-show="phase() === 'playing' && paused()">
+            <span class="overlay-icon">💤</span>
+            <p class="overlay-eyebrow">CAT NAP TIME</p>
+            <h2>Mèo nghỉ xíu.</h2>
+            <p>Chờ sen đi qua đã. Không ai vội cả.</p>
+            <button class="button primary big-button" @click="togglePause()">Chơi tiếp ▶</button>
+          </div>
+        </div>
+        <div class="float-toast" role="status" aria-live="polite" g-show="toast()">{toast()}</div>
+      </div>
+
+      <div class="control-bar">
+        <div class="control-left">
+          <div class="instruction-label"><span class="tap-icon">👆</span><div><strong>Chạm vào đồ để phá</strong><small>{announcement()}</small></div></div>
+        </div>
+        <div class="control-actions">
+          <button class="button hide-button" @click="useHide()" :disabled="phase() !== 'playing' || paused() || cooldown() > 0 || hiding() > 0 || suspicion() === 0"><span>🙈</span> {hidingText()}</button>
+          <button class="button secondary" @click="togglePause()" :disabled="phase() !== 'playing'">{paused() ? '▶ Tiếp tục' : 'Ⅱ Tạm dừng'}</button>
+          <button class="button secondary restart-button" @click="restart()">↻ <span>Chơi lại</span></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="below-game">
+      <div class="target-section">
+        <div class="section-heading">
+          <div><p class="eyebrow">YOUR HIT LIST</p><h2>Những nạn nhân tiếp theo <span>↓</span></h2></div>
+          <small>Chọn mục tiêu từ đây nếu đang chơi trên điện thoại.</small>
+        </div>
+        <div class="target-grid" role="group" aria-label="Chọn một món đồ để mèo phá">
+          <button *for="item, index in targets()" g-key="item.id" :class="targetClass(item)" :disabled="item.state !== 'idle' || phase() !== 'playing' || paused()" @click="queue(item.id)">
+            <span class="target-emoji" aria-hidden="true">{item.emoji}</span>
+            <span class="target-name">{item.name}</span>
+            <span class="target-points">{item.state === 'idle' ? '+' + item.value : '✓ bay màu'}</span>
+            <span class="target-number">{index + 1 === 10 ? 0 : index + 1}</span>
+          </button>
+        </div>
+      </div>
+      <aside class="sidebar">
+        <div class="mini-panel">
+          <p class="eyebrow">HALL OF FAME</p>
+          <div class="trophy">🏆</div>
+          <strong class="best-score">{bestLabel()}</strong>
+          <span>ĐIỂM CAO NHẤT · {roomInfo().name}</span>
+          <p>Kỷ lục lưu trong trình duyệt này. Không tài khoản, không áp lực.</p>
+        </div>
+        <div class="tip-panel">
+          <span class="tip-icon">✦</span>
+          <strong>PRO CAT TIP</strong>
+          <p>Đập liên tiếp để tăng combo. Mỗi cú đập khiến sen nghi ngờ thêm. Bấm <b>“Núp”</b> đúng lúc để thoát nạn!</p>
+          <button class="text-link" @click="share()">Chia sẻ game với hội bạn ↗</button>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <footer class="footer wrap">
+    <div><b>catastrophe<span class="brand-dot">.</span></b> <span>— proudly causing tiny problems since 2026.</span></div>
+    <div>100% HTML · CSS · JS <span class="footer-sep">✳</span> MADE WITH <a href="https://gyosjs.dev" target="_blank" rel="noopener noreferrer">GyosJS</a></div>
+  </footer>
+
+  <div class="help-backdrop" g-show="help()" role="presentation">
+    <section class="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <button class="close-button" @click="closeHelp()" aria-label="Đóng hướng dẫn">×</button>
+      <p class="eyebrow">HOW TO BE A MENACE</p>
+      <h2 id="help-title">Hướng dẫn phá đồ 🐾</h2>
+      <p>Mày là mèo cam. Nhiệm vụ duy nhất: phá càng nhiều đồ càng tốt mà không để sen bắt gặp.</p>
+      <ol>
+        <li><b>Chọn đồ vật</b> bằng cách click vào căn phòng hoặc nút bên dưới. Mèo tự chạy tới và tát bay đồ.</li>
+        <li><b>Combo</b> tăng nếu phá liên tiếp trong vòng 3 giây. Có thể xảy ra phản ứng dây chuyền!</li>
+        <li><b>Độ nghi ngờ</b> tăng khi phá. Đầy 100% là sen bắt quả tang. Bấm Núp để giảm 48%, đổi lại mất 2 giây, hồi chiêu 9 giây.</li>
+        <li><b>72 giây</b> mỗi màn. Phá sạch phòng để được công nhận là boss cuối.</li>
+      </ol>
+      <div class="help-keys">⌨️ Phím <b>1–0</b>: chọn mục tiêu · <b>H</b>: núp · <b>P</b>: tạm dừng</div>
+      <label class="motion-toggle"><input type="checkbox" :checked="reduced()" @change="toggleMotion()"> Giảm hiệu ứng chuyển động</label>
+      <button class="button primary" @click="closeHelp()">Ok, hiểu rồi! 😼</button>
+    </section>
+  </div>
+</div>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
