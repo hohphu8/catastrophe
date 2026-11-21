@@ -136,14 +136,12 @@ test('timer causes loss and no actions score after game over',()=>{
   assert.equal(score,g.score);
 });
 
-test('player can be caught by ignoring suspicion',()=>{
+test('repeated noisy attacks eventually get the cat caught',()=>{
   const g=createGame();start(g);
-  for(let i=0;i<8;i++){
-    g.player.x=g.props[i].x-15;g.player.y=g.props[i].y;
-    g.player.face=1;
-    if(g.phase!=='playing')break;
-    attack(g);advance(g,.3);
-  }
+  g.suspicion=94;
+  g.player.x=131;g.player.face=1;
+  const result=attack(g);
+  assert.equal(result.miss,false);
   assert.equal(g.phase,'caught');
-  assert.ok(g.suspicion>=100);
+  assert.equal(g.suspicion,100);
 });
