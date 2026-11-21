@@ -181,6 +181,16 @@ Gyos.scope('Cat',()=>{
   function toggleMotion(){
     reduced(!reduced());if(scene)scene.reduced=reduced()||matchMedia('(prefers-reduced-motion:reduce)').matches;prefs();
   }
+  function testAudio(){
+    void soundtrack.unlock().then(ok=>{
+      if(!ok){notice('Trình duyệt này không có Web Audio.');return;}
+      soundtrack.sfx('break');
+      const t=soundtrack.ctx.currentTime;
+      [523.25,659.25,783.99].forEach((f,i)=>
+        soundtrack.tone(f,t+i*.12,.4,.17,'triangle'));
+      notice('Âm thanh test: tách! ting! Nhạc sẽ phát khi bắt đầu game.');
+    }).catch(()=>notice('Không thể bật loa. Kiểm tra quyền âm thanh và volume hệ thống.'));
+  }
   function codeKey(event,down){
     if(event.isComposing||event.ctrlKey||event.metaKey||event.altKey)return;
     if(event.target instanceof Element&&event.target.closest('input,textarea,select'))return;
@@ -262,7 +272,7 @@ Gyos.scope('Cat',()=>{
     roomStyle:r=>r.locked?'room-card locked':r.id===level()?'room-card current':'room-card',
     leap,swipe,begin,restart,startOver,nextRoom,selectRoom,share,toggleSound,
     pauseClick:()=>pause(),showHelp:()=>openMenu('help'),showSettings:()=>openMenu('settings'),
-    closeMenu,setMusic,setEffects,toggleMotion,
+    closeMenu,setMusic,setEffects,toggleMotion,testAudio,
     onMount(){
       const canvas=document.getElementById('world');
       if(!canvas)return;
@@ -281,7 +291,8 @@ Gyos.scope('Cat',()=>{
       if(import.meta.env.DEV)window.__catastrophe={
         snapshot:()=>structuredClone(game),
         reset:restart,begin,swipe,leap,
-        press:(key,on)=>setControl(key,on)
+        press:(key,on)=>setControl(key,on),
+        audio:()=>({state:soundtrack.ctx?.state||'not-started',playing:soundtrack.playing,muted:soundtrack.muted})
       };
       raf=requestAnimationFrame(loop);
     },
