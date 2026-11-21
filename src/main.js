@@ -233,8 +233,9 @@ Gyos.scope('Cat', () => {
   }
 
   function keyboard(event) {
-    if (event.altKey || event.ctrlKey || event.metaKey || event.repeat || help()) return;
-    if (event.target?.closest('input, textarea, select')) return;
+    if (help()) { if (event.key === 'Escape') help(false); return; }
+    if (event.altKey || event.ctrlKey || event.metaKey || event.repeat) return;
+    if (event.target instanceof Element && event.target.closest('input, textarea, select')) return;
     const key = event.key.toLowerCase();
     if (key === 'h') useHide();
     if (key === 'p') togglePause();
@@ -282,7 +283,7 @@ Gyos.scope('Cat', () => {
     roomClass: index => room() === index ? 'room-chip selected' : 'room-chip',
     start, restart, chooseRoom, queue, togglePause, useHide,
     toggleSound, toggleMotion, share,
-    showHelp() { help(true); },
+    showHelp() { if (game.phase === 'playing') paused(true); help(true); },
     closeHelp() { help(false); },
     onMount() {
       makeScene();
