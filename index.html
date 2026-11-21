@@ -127,7 +127,7 @@
 
   <footer class="footer wrap"><div><b>catastrophe<span>.</span></b><small>A game with absolutely no regrets. © 2026</small></div><div>MADE WITH <a href="https://gyosjs.dev" target="_blank" rel="noopener noreferrer">GYOSJS</a> · HTML / CSS / JS</div></footer>
 
-  <div class="modal-backdrop" g-show="menu()!==' '&&menu()!==''" @click.self="closeMenu()">
+  <div class="modal-backdrop" g-show="!!menu()">
     <section class="modal" role="dialog" aria-modal="true" aria-label="Game menu">
       <button class="close-modal" @click="closeMenu()" aria-label="Đóng">×</button>
       <div g-show="menu()==='help'">
