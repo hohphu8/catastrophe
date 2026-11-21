@@ -165,12 +165,12 @@ Gyos.scope('Cat',()=>{
     soundtrack.stop();notice(LEVELS[index].subtitle);sync();
   }
   function setMusic(event){
-    const amount=clamp(Number(event.target.value)/100);
+    const amount=clamp(Number(event.target.value)/100,0,1);
     musicVolume(amount);soundtrack.setMusicVolume(amount);prefs();
     if(amount>0&&muted()){muted(false);soundtrack.setMuted(false);prefs();}
   }
   function setEffects(event){
-    const amount=clamp(Number(event.target.value)/100);
+    const amount=clamp(Number(event.target.value)/100,0,1);
     effectsVolume(amount);soundtrack.setEffectsVolume(amount);prefs();
     if(amount>0){if(muted()){muted(false);soundtrack.setMuted(false);}soundtrack.sfx('fish');}
   }
