@@ -109,7 +109,7 @@ Gyos.scope('Cat', () => {
   }
 
   function finish() {
-    if (game.phase !== 'ended' || phase() === 'ended') return;
+    if (game.phase !== 'ended' || result() === game.outcome) return;
     result(game.outcome || 'time');
     saveBest();
     scene.targetId = null;
