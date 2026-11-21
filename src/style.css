@@ -20,3 +20,5 @@
 @media(max-width:365px){.intro h1{font-size:38px}.pad-btn{min-width:38px;min-height:49px}.pad-btn.attack{min-width:50px}.gamepad{padding:10px 7px}.overlay-card>p:not(.overline){max-width:230px;font-size:9px}.end-metrics strong{font-size:15px}}
 @media(orientation:landscape) and (max-height:550px) and (max-width:950px){.wrap{max-width:980px}.site-top,.intro{display:none}.shell{margin-top:8px}.stats{display:grid;grid-template-columns:repeat(5,1fr)}.stat{min-height:51px;padding:6px}.stat.goal-stat{grid-column:4;min-height:51px;border-top:0}.stat.suspicion-stat{grid-column:5;min-height:51px;border-top:0}.stat>strong{font-size:21px}.world-wrap canvas{aspect-ratio:960/450;height:min(57vh,410px)}.gamebar{display:none}.gamepad{padding:7px 12px}.pad-btn{min-height:42px}.intro{display:none}.level-bar{padding:7px 10px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important;scroll-behavior:auto!important}}
+
+.audio-preview{margin:16px 0 4px;width:100%;color:#375847;background:#e6f0df;border-color:#aed0ae;box-shadow:0 3px 0 #aac2a1}.audio-preview:hover{background:#d1e5d2}
