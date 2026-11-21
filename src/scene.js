@@ -213,7 +213,11 @@ export class Scene {
     this.cat={ x: 485, y: 461, face:1, jump:0, swipe:0 };
     this.clock=0;this.targetId=null;this.hoverId=null;
     this.particles=[];this.labels=[];
-    this.reduced=false;this.lastWidth=0;this.lastHeight=0;
+    this.reduced=false;
+    // Static room artwork is cached: the 60 FPS loop only redraws moving objects.
+    this.backdrop=document.createElement('canvas');
+    this.backdrop.width=WIDTH;this.backdrop.height=HEIGHT;
+    this.backdropRoom=-1;
   }
   reset(){ this.cat.x=485;this.cat.y=461;this.cat.jump=0;this.cat.swipe=0;this.targetId=null;this.hoverId=null;this.particles=[];this.labels=[]; }
   point(event){
@@ -295,8 +299,14 @@ export class Scene {
   draw(game){
     this.syncSize();
     const ctx=this.ctx;ctx.clearRect(0,0,WIDTH,HEIGHT);
-    roomShell(ctx,game.roomIndex,this.clock);
-    furniture(ctx,game.roomIndex);
+    if(this.backdropRoom!==game.roomIndex){
+      const background=this.backdrop.getContext('2d');
+      background.clearRect(0,0,WIDTH,HEIGHT);
+      roomShell(background,game.roomIndex,0);
+      furniture(background,game.roomIndex);
+      this.backdropRoom=game.roomIndex;
+    }
+    ctx.drawImage(this.backdrop,0,0);
     // Light stripes over props, labels only show on hover.
     for(const p of game.props){
       if(p.state==='settled')continue;
