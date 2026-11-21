@@ -142,6 +142,7 @@
         <p>Nhạc và SFX được tổng hợp bằng Web Audio. Trình duyệt chỉ phát nhạc sau khi mày nhấn <b>Bắt đầu quậy</b>.</p>
         <div class="slider-line"><div><label for="music-volume">♪ Nhạc nền</label><strong>{musicPercent()}%</strong></div><input id="music-volume" type="range" min="0" max="100" step="1" :value="musicPercent()" @input="setMusic($event)"></div>
         <div class="slider-line"><div><label for="effects-volume">✹ Hiệu ứng va chạm</label><strong>{effectsPercent()}%</strong></div><input id="effects-volume" type="range" min="0" max="100" step="1" :value="effectsPercent()" @input="setEffects($event)"></div>
+        <button class="button audio-preview" @click="testAudio()">▶ NGHE THỬ ÂM THANH</button>
         <div class="setting-row"><span>Tắt toàn bộ âm thanh</span><input type="checkbox" :checked="muted()" @change="toggleSound()"></div>
         <div class="setting-row"><span>Giảm hiệu ứng chuyển động</span><input type="checkbox" :checked="reduced()" @change="toggleMotion()"></div>
         <button class="button play-button modal-confirm" @click="closeMenu()">LƯU & TIẾP TỤC</button>
