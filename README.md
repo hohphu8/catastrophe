@@ -13,7 +13,16 @@ Built from **plain HTML, CSS, JavaScript, Canvas 2D and GyosJS 0.5.6**. Vite is 
 5. The owner patrols the room and becomes suspicious from swats, sight and contact. **Hold C / S** in either green **NÚP** zone on the ground to stay hidden. **Hold Shift** to sprint. Each room has a **95-second** clock.
 6. Complete the **living room, kitchen, then home office** to win. Cleared rooms unlock for replay.
 
-On phones and tablets use the visible **hold-to-move arrow buttons**, plus **JUMP**, **SMACK**, **NÚP** (hold to crouch), and **SPRINT** buttons. Landscape mode provides a larger playfield.
+### Playing on a phone
+
+Open https://hohphu8.github.io/catastrophe/ on your phone and tap **Bắt đầu quậy**. The page switches to a compact game layout and the **gamepad docks to the bottom of the screen**, staying visible when the page scrolls:
+
+- **Hold ◀ / ▶** to walk left/right. The latest pressed direction wins; lifting that finger resumes the earlier direction if it is still held.
+- **Tap JUMP** to leap onto shelves, **tap SMACK** near an object to strike it, and **hold SPRINT** while moving for extra speed.
+- **Hold NÚP** while the cat is on a marked green hiding area on the ground to avoid the owner's sight. Elsewhere it cannot hide.
+- Use two fingers to run + jump/smack or sprint. Tilt into landscape for more room if desired.
+
+Keyboard and touch hold states are tracked **per physical key and pointer ID** rather than one Boolean per direction. Controls release on pointer up/cancel/capture loss, keyup, loss of focus, tab hiding, orientation change, pause and restart; overlapping touches do not create sticky movement.
 
 ### Sound
 
@@ -56,6 +65,7 @@ No server, API keys, accounts or cloud leaderboard are required. Saves are limit
 | `src/scene.js` | Cached hand-drawn Canvas environments, character illustrations, custom objects, enemy vision cone, particle effects and camera |
 | `src/audio.js` | Procedural original music, layered Web Audio effects, unlock/resume/mute and separate master buses |
 | `src/main.js` | GyosJS scope, reactive HUD/computed values, game phases, keyboard/touch controls, preferences, cleanup |
+| `src/input.js` | Continuous input ownership by key/pointer source, last-pressed directional priority and safe release/reset |
 | `index.html` | GyosJS declarative HUD, menus and unlockable chapter cards, responsive gamepad |
 | `tests/` | Pure Node rules regression tests and Playwright desktop/mobile gameplay checks |
 
