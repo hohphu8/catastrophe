@@ -258,6 +258,7 @@ export class Scene{
     this.bg=document.createElement('canvas');this.bg.width=W;this.bg.height=H;
     this.cachedLevel=-1;this.particles=[];this.bubbles=[];
     this.camera=0;this.now=0;this.shake=0;this.viewW=W;this.reduced=false;
+    this.scaleCss=1;this.offsetX=0;this.offsetY=0;
   }
   reset(){this.particles=[];this.bubbles=[];this.camera=0;this.shake=0;}
   effect(kind,x,y,value=''){
@@ -288,10 +289,18 @@ export class Scene{
     const dpr=Math.min(devicePixelRatio||1,2);
     const w=Math.max(1,Math.round(box.width*dpr)),h=Math.max(1,Math.round(box.height*dpr));
     if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
-    this.viewW=box.width<700?710:W;
+    this.viewW=matchMedia('(max-width: 780px)').matches?710:W;
     this.camera=clamp(this.camera,0,W-this.viewW);
+    // Contain the illustrated 2D world without stretching on ultrawide,
+    // laptop, portrait mobile or browser fullscreen.
+    const scale=Math.min(w/this.viewW,h/H);
+    const offsetX=(w-this.viewW*scale)/2;
+    const offsetY=(h-H*scale)/2;
+    this.scaleCss=scale/dpr;
+    this.offsetX=offsetX/dpr;
+    this.offsetY=offsetY/dpr;
     ctx.resetTransform();ctx.clearRect(0,0,w,h);
-    ctx.setTransform(w/this.viewW,0,0,h/H,-this.camera*w/this.viewW,0);
+    ctx.setTransform(scale,0,0,scale,offsetX-this.camera*scale,offsetY);
     if(this.shake&&!this.reduced)ctx.translate(Math.sin(this.now*95)*this.shake,Math.cos(this.now*81)*this.shake*.4);
     if(this.cachedLevel!==game.levelIndex){
       const b=this.bg.getContext('2d');
