@@ -13,7 +13,7 @@
 </head>
 <body>
 <noscript><div class="noscript">Mèo muốn chạy nhảy cần JavaScript. Bật JS lên nhé!</div></noscript>
-<div id="app" g-scope="Cat" g-cloak>
+<div id="app" g-scope="Cat" g-cloak :class="appClass()">
   <header class="site-top wrap">
     <a href="./" class="brand" aria-label="Catastrophe home"><span class="logo-cat" aria-hidden="true">🐈</span><span>cata<span class="brand-highlight">strophe</span><b>.</b></span></a>
     <span class="top-descriptor">A very serious game about a very unserious cat.</span>
@@ -60,7 +60,8 @@
             <h2>Nhà này hơi<br><i>nhiều đồ.</i></h2>
             <p>Nhảy lên kệ, quật đồ rơi, gom cá rồi chạy sang cửa bên phải. Sen đang đi tuần!</p>
             <button class="button play-button" @click="begin()">▶ BẮT ĐẦU QUẬY</button>
-            <small>NHẤN A/D ĐỂ CHẠY · SPACE NHẢY · J TÁT</small>
+            <small class="desktop-hint">NHẤN A/D ĐỂ CHẠY · SPACE NHẢY · J TÁT</small>
+            <small class="mobile-hint">TRÊN ĐIỆN THOẠI: GIỮ ◀ ▶ ĐỂ CHẠY, BẤM JUMP & SMACK</small>
           </section>
           <section class="overlay-card end-card" g-show="isResult()">
             <div class="overlay-cat" aria-hidden="true">{phase()==='cleared'||phase()==='won'?'🏆':'😿'}</div>
@@ -90,7 +91,7 @@
         <div class="gamebar-actions"><button class="tiny-btn" @click="pauseClick()" :disabled="phase()!=='playing'">{paused()?'▶ Resume':'Ⅱ Pause'}</button><button class="tiny-btn" @click="restart()">↻ Restart</button><button class="tiny-btn" @click="showHelp()">? Controls</button></div>
       </div>
 
-      <div class="gamepad" aria-label="Các nút điều khiển game cho màn hình cảm ứng">
+      <div class="gamepad" aria-label="Các nút điều khiển game cho màn hình cảm ứng" g-show="phase()==='playing' && !paused() && !menu()">
         <div class="pad-group direction-group">
           <button id="mobile-left" class="pad-btn direction" aria-label="Giữ để chạy trái">◀</button>
           <button id="mobile-right" class="pad-btn direction" aria-label="Giữ để chạy phải">▶</button>
@@ -98,8 +99,8 @@
         </div>
         <div class="pad-group action-group">
           <button id="mobile-hide" class="pad-btn hide" aria-label="Giữ để núp ở vùng được đánh dấu">🫣<small>NÚP</small></button>
-          <button id="mobile-jump" class="pad-btn jump" @click="leap()" aria-label="Nhảy">↑<small>JUMP</small></button>
-          <button id="mobile-attack" class="pad-btn attack" @click="swipe()" aria-label="Tát đồ">👊<small>SMACK</small></button>
+          <button id="mobile-jump" class="pad-btn jump" aria-label="Nhảy">↑<small>JUMP</small></button>
+          <button id="mobile-attack" class="pad-btn attack" aria-label="Tát đồ">👊<small>SMACK</small></button>
         </div>
       </div>
     </section>
