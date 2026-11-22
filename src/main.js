@@ -30,7 +30,8 @@ Gyos.scope('Cat',()=>{
     paused=signal(false),menu=signal(''),status=signal('WASD để chạy · SPACE để nhảy · J để tát đồ.'),
     musicVolume=signal(typeof stored.music==='number'?clamp(stored.music,0,1):.68),
     effectsVolume=signal(typeof stored.effects==='number'?clamp(stored.effects,0,1):.9),
-    muted=signal(stored.muted===true),reduced=signal(stored.reduced===true);
+    muted=signal(stored.muted===true),reduced=signal(stored.reduced===true),
+    isFullscreen=signal(!!document.fullscreenElement);
   soundtrack.setMusicVolume(musicVolume());
   soundtrack.setEffectsVolume(effectsVolume());
   soundtrack.setMuted(muted());
@@ -162,9 +163,6 @@ Gyos.scope('Cat',()=>{
     // start() is invoked on a real button click; audio context unlocks in this gesture.
     void soundtrack.start().catch(()=>notice('Trình duyệt chặn âm thanh; thử click lại nút nhạc.'));
     // On phones the title/intro should not sit between the player and controls.
-    if(matchMedia('(max-width:780px)').matches){
-      requestAnimationFrame(()=>document.querySelector('.shell')?.scrollIntoView({block:'start',behavior:'auto'}));
-    }
   }
   function restart(){
     const index=game.levelIndex,carry=Math.max(0,game.score-game.levelScore);
@@ -185,7 +183,7 @@ Gyos.scope('Cat',()=>{
     notice('Chào mừng đến '+LEVELS[game.levelIndex].name+'!');sync();
   }
   function selectRoom(index){
-    if(game.phase==='playing'||index>records.unlocked||index<0||!LEVELS[index])return;
+    if((game.phase==='playing'&&menu()!=='chapters')||index>records.unlocked||index<0||!LEVELS[index])return;
     game=createGame(index,0);scene?.reset();clearInput();paused(false);menu('');previous=0;
     soundtrack.stop();notice(LEVELS[index].subtitle);sync();
   }
@@ -205,6 +203,13 @@ Gyos.scope('Cat',()=>{
   }
   function toggleMotion(){
     reduced(!reduced());if(scene)scene.reduced=reduced()||matchMedia('(prefers-reduced-motion:reduce)').matches;prefs();
+  }
+  async function toggleFullscreen(){
+    try{
+      if(document.fullscreenElement)await document.exitFullscreen();
+      else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();
+      else notice('Trình duyệt không hỗ trợ fullscreen. Game vẫn vừa màn hình trình duyệt.');
+    }catch{notice('Trình duyệt đã chặn fullscreen. Game vẫn vừa màn hình trình duyệt.');}
   }
   function testAudio(){
     void soundtrack.unlock().then(ok=>{
@@ -277,7 +282,7 @@ Gyos.scope('Cat',()=>{
       if(game.phase!=='playing'||paused()||menu())return;
       const r=canvas.getBoundingClientRect();
       const v=scene.viewW;
-      const clickX=scene.camera+(event.clientX-r.left)/r.width*v;
+      const clickX=scene.camera+(event.clientX-r.left-scene.offsetX)/scene.scaleCss;
       if(Math.abs(clickX-game.player.x)<170)
         game.player.face=clickX>=game.player.x?1:-1;
       swipe();
@@ -315,7 +320,7 @@ Gyos.scope('Cat',()=>{
   return {
     phase,level,score,levelScore,seconds,suspicion,combo,broken,eaten,exitOpen,
     hidden,zoomies,alert,best,unlocked,paused,menu,status,
-    musicVolume,effectsVolume,muted,reduced,
+    musicVolume,effectsVolume,muted,reduced,isFullscreen,
     levelInfo,mission,comboLabel,dangerLabel,statusType,controlsHint,resultsTitle,resultsText,roomOptions,
     format,appClass:()=>phase()==='ready'?'':'is-playing',
     scoreText:()=>format(score()),bestText:()=>format(best()),
@@ -323,8 +328,9 @@ Gyos.scope('Cat',()=>{
     musicPercent:()=>Math.round(musicVolume()*100),effectsPercent:()=>Math.round(effectsVolume()*100),
     isResult:()=>['cleared','caught','timeout','won'].includes(phase()),
     roomStyle:r=>r.locked?'room-card locked':r.id===level()?'room-card current':'room-card',
-    leap,swipe,begin,restart,startOver,nextRoom,selectRoom,share,toggleSound,
+    leap,swipe,begin,restart,startOver,nextRoom,selectRoom,share,toggleSound,toggleFullscreen,
     pauseClick:()=>pause(),showHelp:()=>openMenu('help'),showSettings:()=>openMenu('settings'),
+    showChapters:()=>openMenu('chapters'),
     closeMenu,setMusic,setEffects,toggleMotion,testAudio,
     onMount(){
       const canvas=document.getElementById('world');
@@ -334,6 +340,7 @@ Gyos.scope('Cat',()=>{
       bindButtons();
       const media=matchMedia('(prefers-reduced-motion:reduce)');
       media.addEventListener('change',()=>{if(scene)scene.reduced=reduced()||media.matches;},{signal:abort.signal});
+      document.addEventListener('fullscreenchange',()=>isFullscreen(!!document.fullscreenElement),{signal:abort.signal});
       window.addEventListener('keydown',e=>codeKey(e,true),{signal:abort.signal});
       window.addEventListener('keyup',e=>codeKey(e,false),{signal:abort.signal});
       window.addEventListener('pointerup',e=>inputManager.releasePointer(e.pointerId),{signal:abort.signal});
