@@ -99,3 +99,93 @@ test('active gameplay never automatically awards a score or finishes',async({pag
   expect(g.phase).toBe('playing');
   expect(errors).toEqual([]);
 });
+
+test('rapid keyboard switches never stick or reverse direction after release',async({page})=>{
+  const errors=await boot(page);
+  await page.getByRole('button',{name:/BẮT ĐẦU QUẬY/}).click();
+
+  await page.keyboard.down('a');
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input.left)).toBe(true);
+  await page.keyboard.down('d');
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:false,right:true});
+  await page.keyboard.up('d');
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:true,right:false});
+  await page.keyboard.up('a');
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:false,right:false});
+
+  // Two physical keys can be held for the same direction.
+  await page.keyboard.down('a');
+  await page.keyboard.down('ArrowLeft');
+  await page.keyboard.up('a');
+  expect((await page.evaluate(()=>window.__catastrophe.snapshot())).input.left).toBe(true);
+  await page.keyboard.up('ArrowLeft');
+  expect((await page.evaluate(()=>window.__catastrophe.snapshot())).input.left).toBe(false);
+
+  // Releasing a key while a modifier is held must still release it.
+  await page.keyboard.down('a');
+  await page.keyboard.down('Control');
+  await page.keyboard.up('a');
+  await page.keyboard.up('Control');
+  expect((await page.evaluate(()=>window.__catastrophe.snapshot())).input.left).toBe(false);
+
+  // Simulate an interrupted hold: blur clears inputs and pauses the round.
+  await page.keyboard.down('d');
+  await page.evaluate(()=>window.dispatchEvent(new Event('blur')));
+  expect((await page.evaluate(()=>window.__catastrophe.snapshot())).input.right).toBe(false);
+  await expect(page.locator('.pause-card')).toBeVisible();
+  await page.keyboard.up('d');
+  expect(errors).toEqual([]);
+});
+
+test('mobile gamepad stays visible while scrolling and releases held pointers',async({page})=>{
+  await page.setViewportSize({width:390,height:844});
+  const errors=await boot(page);
+  await expect(page.locator('.mobile-hint')).toBeVisible();
+  await expect(page.locator('.gamepad')).toBeHidden();
+
+  await page.getByRole('button',{name:/BẮT ĐẦU QUẬY/}).click();
+  const left=page.locator('#mobile-left');
+  await expect(left).toBeVisible();
+  const pad=page.locator('.gamepad');
+  const rect=await pad.boundingBox();
+  expect(rect).not.toBeNull();
+  expect(Math.abs(rect.y+rect.height-844)).toBeLessThan(3);
+  await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));
+  const rect2=await pad.boundingBox();
+  expect(Math.abs(rect2.y+rect2.height-844)).toBeLessThan(3);
+
+  await left.hover();
+  await page.mouse.down();
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input.left)).toBe(true);
+  await expect(left).toHaveClass(/is-held/);
+  await page.mouse.move(18,25); // pointer capture keeps hold until actual release
+  await page.mouse.up();
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input.left)).toBe(false);
+  await expect(left).not.toHaveClass(/is-held/);
+  expect(errors).toEqual([]);
+});
+
+test('two simultaneous touch contacts switch direction correctly and cancel safely',async({browser})=>{
+  const context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+  const page=await context.newPage();
+  try{
+    await page.goto('http://127.0.0.1:4230/');
+    await expect(page.locator('#app')).toBeVisible();
+    await page.getByRole('button',{name:/BẮT ĐẦU QUẬY/}).tap();
+    const left=await page.locator('#mobile-left').boundingBox();
+    const right=await page.locator('#mobile-right').boundingBox();
+    expect(left).not.toBeNull();
+    expect(right).not.toBeNull();
+    const a={x:Math.round(left.x+left.width/2),y:Math.round(left.y+left.height/2),id:11};
+    const d={x:Math.round(right.x+right.width/2),y:Math.round(right.y+right.height/2),id:12};
+    const cdp=await context.newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[a]});
+    await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input.left)).toBe(true);
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[a,d]});
+    await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:false,right:true});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[a]});
+    await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:true,right:false});
+    await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
+    await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:false,right:false});
+  } finally {await context.close();}
+});
