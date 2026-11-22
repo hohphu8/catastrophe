@@ -196,3 +196,74 @@ test('two simultaneous touch contacts switch direction correctly and cancel safe
     await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:false,right:false});
   } finally {await context.close();}
 });
+
+test('desktop is a true single-viewport game, not a scrolling landing page',async({page})=>{
+  await page.setViewportSize({width:1366,height:768});
+  const errors=await boot(page);
+  await expect(page.locator('.intro')).toHaveCount(0);
+  await expect(page.locator('.footer')).toHaveCount(0);
+  await expect(page.locator('.start-card')).toBeVisible();
+  const metrics=await page.evaluate(()=>{
+    const canvas=document.getElementById('world').getBoundingClientRect();
+    const game=document.querySelector('.shell').getBoundingClientRect();
+    return {
+      scrollHeight:document.documentElement.scrollHeight, viewport:innerHeight,
+      gameHeight:game.height,canvasHeight:canvas.height, gameWidth:game.width
+    };
+  });
+  expect(metrics.scrollHeight).toBeLessThanOrEqual(metrics.viewport+1);
+  expect(metrics.gameHeight).toBeGreaterThan(650);
+  expect(metrics.canvasHeight).toBe(metrics.gameHeight);
+  expect(metrics.gameWidth).toBe(1366);
+  await page.getByRole('button',{name:/BẮT ĐẦU QUẬY/}).click();
+  await expect(page.locator('.start-card')).toBeHidden();
+  await expect(page.locator('.stats')).toBeVisible();
+  await expect(page.locator('.keyboard-dock')).toBeVisible();
+  await page.evaluate(()=>window.scrollTo(0,600));
+  expect(await page.evaluate(()=>window.scrollY)).toBe(0);
+  expect(errors).toEqual([]);
+});
+
+test('chapters, help, audio use modals and return to the game without page navigation',async({page})=>{
+  const errors=await boot(page);
+  await page.getByRole('button',{name:/Chọn màn/}).click();
+  await expect(page.locator('.chapter-selector')).toBeVisible();
+  await expect(page.locator('.chapter-selector button')).toHaveCount(3);
+  await page.locator('.chapter-selector button').first().click();
+  await expect(page.locator('.chapter-selector')).toBeHidden();
+  await expect(page.locator('.start-card')).toBeVisible();
+
+  await page.getByRole('button',{name:/Cách chơi/}).first().click();
+  await expect(page.locator('.keys-table')).toBeVisible();
+  await page.getByRole('button',{name:/HIỂU RỒI/}).click();
+  await expect(page.locator('.keys-table')).toBeHidden();
+
+  await page.getByRole('button',{name:/BẮT ĐẦU QUẬY/}).click();
+  await page.getByRole('button',{name:/Chọn màn/}).click();
+  await expect(page.locator('.chapter-selector')).toBeVisible();
+  await page.getByRole('button',{name:/QUAY LẠI GAME/}).click();
+  await expect(page.locator('.chapter-selector')).toBeHidden();
+  await expect(page.locator('.pause-card')).toBeHidden();
+  expect((await page.evaluate(()=>window.__catastrophe.snapshot())).phase).toBe('playing');
+  expect(errors).toEqual([]);
+});
+
+test('ultrawide world is letterboxed without changing character geometry',async({page})=>{
+  await page.setViewportSize({width:2560,height:1080});
+  const errors=await boot(page);
+  await page.getByRole('button',{name:/BẮT ĐẦU QUẬY/}).click();
+  const dimensions=await page.evaluate(()=>{
+    const canvas=document.querySelector('#world'),rect=canvas.getBoundingClientRect();
+    const ctx=canvas.getContext('2d'),tr=ctx.getTransform();
+    return {
+      w:rect.width,h:rect.height,
+      sameScale:Math.abs(tr.a-tr.d)<.0001,
+      viewportScroll:document.documentElement.scrollHeight-innerHeight,
+      visibleLeftMargin:(rect.width-960*tr.a/devicePixelRatio)/2
+    };
+  });
+  expect(dimensions.sameScale).toBe(true);
+  expect(dimensions.viewportScroll).toBeLessThanOrEqual(1);
+  expect(dimensions.visibleLeftMargin).toBeGreaterThan(150);
+  expect(errors).toEqual([]);
+});
