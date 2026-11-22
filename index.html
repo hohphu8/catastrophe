@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#142f2d">
+  <meta name="theme-color" content="#0b1717">
   <meta name="description" content="Catastrophe — chạy, nhảy, tát đồ, ăn cá và trốn sen. Một game mèo cam 2D được xây bằng GyosJS, HTML, CSS, JavaScript.">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,81 +14,118 @@
 <body>
 <noscript><div class="noscript">Mèo muốn chạy nhảy cần JavaScript. Bật JS lên nhé!</div></noscript>
 <div id="app" g-scope="Cat" g-cloak :class="appClass()">
-  <header class="site-top wrap">
-    <a href="./" class="brand" aria-label="Catastrophe home"><span class="logo-cat" aria-hidden="true">🐈</span><span>cata<span class="brand-highlight">strophe</span><b>.</b></span></a>
-    <span class="top-descriptor">A very serious game about a very unserious cat.</span>
+  <header class="site-top">
+    <a href="./" class="brand" aria-label="Catastrophe home">
+      <span class="logo-cat" aria-hidden="true">🐈</span>
+      <span>cata<span class="brand-highlight">strophe</span><b>.</b></span>
+      <small>ARCADE</small>
+    </a>
+    <div class="header-room">
+      <span class="chapter-kicker">LEVEL 0{level()+1} <span>/ 03</span></span>
+      <strong>{levelInfo().name}</strong>
+      <span class="header-dot">◆</span>
+      <span class="header-brief">{levelInfo().subtitle}</span>
+    </div>
     <div class="top-actions">
       <button class="top-btn sound-toggle" @click="toggleSound()" :aria-label="muted() ? 'Bật âm thanh' : 'Tắt âm thanh'" :title="muted() ? 'Bật âm thanh' : 'Tắt âm thanh'">{muted()?'🔇':'🔊'}</button>
-      <button class="top-btn" @click="showSettings()">⚙ <span>Âm thanh</span></button>
-      <button class="top-btn" @click="showHelp()">? <span>Hướng dẫn</span></button>
+      <button class="top-btn" @click="showSettings()" aria-label="Âm thanh và cài đặt">⚙ <span>Cài đặt</span></button>
+      <button class="top-btn" @click="showChapters()">▦ <span>Chọn màn</span></button>
+      <button class="top-btn help-trigger" @click="showHelp()">? <span>Cách chơi</span></button>
+      <button class="top-btn fullscreen-toggle" @click="toggleFullscreen()" :aria-label="isFullscreen() ? 'Thoát toàn màn hình' : 'Toàn màn hình'">
+        <span>{isFullscreen()?'⤢':'⛶'}</span> <span>Toàn màn hình</span>
+      </button>
     </div>
   </header>
 
-  <main class="wrap">
-    <section class="intro">
-      <div class="intro-main">
-        <div class="eyebrow"><span class="eyebrow-dot"></span> AN INDIE CHAOS PLATFORMER <span class="eyebrow-faint">/ 3 MINI LEVELS</span></div>
-        <h1>Bad cat. <em>Good game.</em></h1>
-        <p>Không chỉ click nữa đâu. Mày là mèo cam: <b>tự chạy, tự nhảy, tát đồ, giật cá ngừ</b> rồi trốn khỏi sen trước khi bị bắt quả tang. 🐾</p>
-      </div>
-      <div class="intro-stamp" aria-hidden="true"><span>100%</span><b>INNOCENT</b><small>probably not</small></div>
-    </section>
-
-    <section class="shell" aria-label="Catastrophe platform game">
-      <div class="level-bar">
-        <div class="level-name"><span class="level-icon">✳</span><div><small>CHAPTER 0{level()+1} / 03</small><strong>{levelInfo().name}</strong></div></div>
-        <div class="level-objective"><span>THE MISSION</span><b>{levelInfo().objective}</b></div>
-        <div class="level-badge">{exitOpen()?'EXIT UNLOCKED!':'GET TO THE DOOR →'}</div>
-      </div>
-
-      <div class="stats">
-        <div class="stat"><span>CHAOS POINTS</span><strong class="score-number">{scoreText()}</strong><small>BEST · {bestText()}</small></div>
-        <div class="stat"><span>TIME LEFT</span><strong>{seconds()}<small>s</small></strong><small>HẾT GIỜ LÀ THUA</small></div>
-        <div class="stat"><span>COMBO</span><strong class="combo-number">{comboLabel()}</strong><small>{zoomies()?'⚡ ZOOMIES!':'4 GIÂY ĐỂ NỐI COMBO'}</small></div>
-        <div class="stat goal-stat"><span>MISSION PROGRESS</span><div class="goal-values"><b>💥 {broken()}/{mission().goal}</b><b>🐟 {eaten()}/{mission().fishGoal}</b></div><small>{exitOpen()?'✓ CỬA THOÁT ĐÃ MỞ':'PHÁ ĐỒ + ĂN CÁ ĐỂ MỞ CỬA'}</small></div>
-        <div class="stat suspicion-stat"><div class="suspicion-top"><span>OWNER ALERT</span><strong>{suspicion()}%</strong></div><div class="danger-track"><div class="danger-fill" :style="dangerStyle()"></div></div><small>{dangerLabel()}</small></div>
-      </div>
-
+  <main class="game-main">
+    <section class="shell" aria-label="Catastrophe 2D platform game">
       <div class="world-wrap">
-        <div class="world-top"><span><span class="blink-pixel"></span> LIVE / {levelInfo().theme.toUpperCase()}</span><span class="world-indicator">{alert()?'🚨 SEN ĐANG NHÌN!':hidden()?'🫣 ĐANG NÚP':exitOpen()?'🔓 CỬA MỞ':'🐾 MEOW MODE'}</span></div>
-        <canvas id="world" width="960" height="540" aria-label="Màn chơi 2D. Dùng A/D hoặc phím mũi tên để di chuyển mèo, Space nhảy, J tát đồ, giữ C ở khu vực núp. Dùng các nút điều khiển bên dưới nếu chơi bằng cảm ứng.">Trình duyệt của mày cần hỗ trợ Canvas 2D.</canvas>
+        <canvas id="world" width="960" height="540" aria-label="Màn chơi 2D. Dùng A/D để chạy, Space nhảy, J tát đồ, C núp. Trên điện thoại dùng gamepad phía dưới.">Trình duyệt của mày cần hỗ trợ Canvas 2D.</canvas>
+        <div class="world-vignette" aria-hidden="true"></div>
+
+        <div class="level-bar">
+          <div class="level-name">
+            <span class="level-icon" aria-hidden="true">✹</span>
+            <div><small>YOUR OBJECTIVE · 0{level()+1}</small><strong>{levelInfo().name}</strong></div>
+          </div>
+          <div class="level-objective"><span>MISSION</span><b>{levelInfo().objective}</b></div>
+          <span class="level-badge" :class="exitOpen()?'exit-ready':''">{exitOpen()?'↗ EXIT OPEN':'● EXIT LOCKED'}</span>
+        </div>
+
+        <div class="stats">
+          <div class="stat score-stat"><span>CHAOS SCORE</span><strong class="score-number">{scoreText()}</strong><small>RECORD {bestText()}</small></div>
+          <div class="stat time-stat"><span>TIME</span><strong>{seconds()}<small>s</small></strong><small>DON'T GET CAUGHT</small></div>
+          <div class="stat combo-stat"><span>COMBO</span><strong class="combo-number">{comboLabel()}</strong><small>{zoomies()?'⚡ ZOOMIES!':'KEEP IT GOING'}</small></div>
+          <div class="stat goal-stat"><span>TO DESTROY</span><div class="goal-values"><b>💥 {broken()}/{mission().goal}</b><b>🐟 {eaten()}/{mission().fishGoal}</b></div><small>{exitOpen()?'ESCAPE TO THE RIGHT →':'BREAK · SNATCH · ESCAPE'}</small></div>
+          <div class="stat suspicion-stat">
+            <div class="suspicion-top"><span>OWNER ALERT</span><strong>{suspicion()}%</strong></div>
+            <div class="danger-track"><div class="danger-fill" :style="dangerStyle()"></div></div>
+            <small>{dangerLabel()}</small>
+          </div>
+        </div>
+
+        <div class="gamebar">
+          <div class="gamebar-message">
+            <span class="notification-icon" aria-hidden="true">✦</span>
+            <div><strong>CAT STATUS</strong><p role="status" aria-live="polite">{status()}</p></div>
+          </div>
+          <div class="gamebar-actions">
+            <button class="tiny-btn" @click="pauseClick()" :disabled="phase()!=='playing'">{paused()?'▶ Resume':'Ⅱ Pause'}</button>
+            <button class="tiny-btn" @click="restart()">↺ Restart</button>
+          </div>
+        </div>
+
+        <div class="world-top" aria-hidden="true"><span class="blink-pixel"></span>
+          <span>{alert()?'🚨 SEN ĐANG NHÌN!':hidden()?'🫣 ĐANG NÚP':exitOpen()?'🔓 CỬA MỞ':'● LIVE GAMEPLAY'}</span>
+        </div>
 
         <div class="scene-overlay" g-show="phase()!=='playing'||paused()">
           <section class="overlay-card start-card" g-show="phase()==='ready'">
-            <div class="overlay-cat" aria-hidden="true">😼</div>
-            <p class="overline">WELCOME TO THE CRIME SCENE</p>
-            <h2>Nhà này hơi<br><i>nhiều đồ.</i></h2>
-            <p>Nhảy lên kệ, quật đồ rơi, gom cá rồi chạy sang cửa bên phải. Sen đang đi tuần!</p>
+            <div class="overlay-topline"><span>🐾 CAT FILE NO. 001</span><span>ORANGE CAT / CHAOS CLASS</span></div>
+            <div class="start-heading">
+              <p class="overline">WELCOME TO THE CRIME SCENE</p>
+              <h1>BAD CAT.<br><em>GOOD GAME.</em></h1>
+              <p class="start-subtitle">Một con mèo cam. Ba căn phòng. Không một chút hối lỗi.</p>
+            </div>
+            <div class="start-mission">
+              <div><span class="mission-number">01</span><strong>PHÁ ĐỒ</strong><small>Tát đồ đúng tầm, nối combo</small></div>
+              <div><span class="mission-number">02</span><strong>TRỘM CÁ</strong><small>Nhảy lên kệ gom cá ngừ</small></div>
+              <div><span class="mission-number">03</span><strong>CHUỒN</strong><small>Núp sen rồi thoát sang phải</small></div>
+            </div>
             <button class="button play-button" @click="begin()">▶ BẮT ĐẦU QUẬY</button>
-            <small class="desktop-hint">NHẤN A/D ĐỂ CHẠY · SPACE NHẢY · J TÁT</small>
-            <small class="mobile-hint">TRÊN ĐIỆN THOẠI: GIỮ ◀ ▶ ĐỂ CHẠY, BẤM JUMP & SMACK</small>
+            <button class="intro-help" @click="showHelp()">XEM CÁCH CHƠI <span>↗</span></button>
+            <small class="desktop-hint">A / D CHẠY <span>·</span> SPACE NHẢY <span>·</span> J TÁT <span>·</span> C NÚP</small>
+            <small class="mobile-hint">GIỮ ◀ ▶ ĐỂ CHẠY · JUMP NHẢY · SMACK TÁT</small>
           </section>
           <section class="overlay-card end-card" g-show="isResult()">
+            <p class="overline">ROUND REPORT / CHAPTER 0{level()+1}</p>
             <div class="overlay-cat" aria-hidden="true">{phase()==='cleared'||phase()==='won'?'🏆':'😿'}</div>
-            <p class="overline">ROUND REPORT · CAT FILE #00{level()+1}</p>
             <h2>{resultsTitle()}</h2>
             <p>{resultsText()}</p>
-            <div class="end-metrics"><div><strong>{scoreText()}</strong><small>ĐIỂM TỔNG</small></div><div><strong>{broken()}/{mission().goal}</strong><small>ĐỒ ĐẬP</small></div><div><strong>{eaten()}</strong><small>CÁ NGỪ</small></div></div>
+            <div class="end-metrics">
+              <div><strong>{scoreText()}</strong><small>TỔNG ĐIỂM</small></div>
+              <div><strong>{broken()}/{mission().goal}</strong><small>ĐỒ ĐẬP</small></div>
+              <div><strong>{eaten()}</strong><small>CÁ NGỪ</small></div>
+            </div>
             <div class="overlay-actions">
-              <button class="button play-button" g-show="phase()==='cleared'" @click="nextRoom()">SANG PHÒNG TIẾP →</button>
-              <button class="button play-button" g-show="phase()==='won'" @click="startOver()">CHƠI TỪ ĐẦU ↻</button>
-              <button class="button play-button" g-show="phase()==='caught'||phase()==='timeout'" @click="restart()">THỬ LẠI ↻</button>
+              <button class="button play-button" g-show="phase()==='cleared'" @click="nextRoom()">SANG MÀN TIẾP →</button>
+              <button class="button play-button" g-show="phase()==='won'" @click="startOver()">CHƠI LẠI TỪ ĐẦU ↺</button>
+              <button class="button play-button" g-show="phase()==='caught'||phase()==='timeout'" @click="restart()">THỬ LẠI ↺</button>
               <button class="button outline-button" @click="share()">↗ CHIA SẺ</button>
             </div>
           </section>
           <section class="overlay-card pause-card" g-show="phase()==='playing'&&paused()">
             <div class="overlay-cat" aria-hidden="true">💤</div>
-            <p class="overline">AFK · CAT NAP</p>
-            <h2>Ngủ một tí.</h2>
-            <p>Phòng vẫn đang bừa. Sen chưa biết đâu.</p>
+            <p class="overline">CAT NAP / GAME PAUSED</p>
+            <h2>Nghỉ tí, sen chưa biết đâu.</h2>
+            <p>Đừng ngủ quên. Đồ đạc vẫn còn nguyên.</p>
             <button class="button play-button" @click="pauseClick()">▶ CHƠI TIẾP</button>
+            <div class="pause-subactions">
+              <button class="button outline-button" @click="showHelp()">? CÁCH CHƠI</button>
+              <button class="button outline-button" @click="restart()">↺ CHƠI LẠI</button>
+            </div>
           </section>
         </div>
-      </div>
-
-      <div class="gamebar">
-        <div class="gamebar-message"><span class="notification-icon">✦</span><div><strong>CAT STATUS</strong><p role="status" aria-live="polite">{status()}</p></div></div>
-        <div class="gamebar-actions"><button class="tiny-btn" @click="pauseClick()" :disabled="phase()!=='playing'">{paused()?'▶ Resume':'Ⅱ Pause'}</button><button class="tiny-btn" @click="restart()">↻ Restart</button><button class="tiny-btn" @click="showHelp()">? Controls</button></div>
       </div>
 
       <div class="gamepad" aria-label="Các nút điều khiển game cho màn hình cảm ứng" g-show="phase()==='playing' && !paused() && !menu()">
@@ -103,30 +140,9 @@
           <button id="mobile-attack" class="pad-btn attack" aria-label="Tát đồ">👊<small>SMACK</small></button>
         </div>
       </div>
-    </section>
-
-    <section class="under">
-      <div class="rules">
-        <div class="section-heading"><small>01 — HOW THE CAT WORKS</small><h2>Chơi kiểu <em>có kỹ năng.</em></h2><p>Không có nút auto-win. Vượt ba căn phòng, né tầm nhìn của sen và chơi combo cho đã tay.</p></div>
-        <div class="rule-grid">
-          <article class="rule"><span class="rule-emoji">🐾</span><div><strong>Chạy + nhảy</strong><p><kbd>A</kbd><kbd>D</kbd> hoặc <kbd>←</kbd><kbd>→</kbd> để chạy. <kbd>SPACE</kbd> / <kbd>W</kbd> để nhảy lên các bệ gỗ.</p></div></article>
-          <article class="rule"><span class="rule-emoji">💥</span><div><strong>Tát đúng tầm</strong><p><kbd>J</kbd> / <kbd>K</kbd> để đập. Một số đồ cứng phải đập hai lần. Nối combo trong 4 giây để tăng điểm.</p></div></article>
-          <article class="rule"><span class="rule-emoji">🫣</span><div><strong>Trốn sen</strong><p>Sen đi tuần bên phải. Giữ <kbd>C</kbd> trong vùng <b>NÚP</b> màu xanh. Giữ <kbd>SHIFT</kbd> để chạy nhanh.</p></div></article>
-          <article class="rule"><span class="rule-emoji">🐟</span><div><strong>Gom cá rồi chuồn</strong><p>Phá đủ đồ, nhặt cá ngừ trên kệ và chạy đến <b>cửa bên phải</b> để sang phòng tiếp theo.</p></div></article>
-        </div>
-      </div>
-      <aside class="sidebar">
-        <div class="chapter-panel">
-          <small>02 — YOUR ADVENTURE</small><h3>Ba căn phòng.<br>Một tội phạm.</h3>
-          <button *for="entry in roomOptions()" g-key="entry.id" :class="roomStyle(entry)" :disabled="entry.locked||phase()==='playing'" @click="selectRoom(entry.id)"><span class="chapter-number">0{entry.id+1}</span><span class="chapter-name">{entry.name}</span><span class="chapter-icon">{entry.locked?'🔒':entry.id===level()?'●':'↗'}</span></button>
-          <p>Vượt qua một phòng để mở khóa phòng kế. Kỷ lục lưu ngay trên trình duyệt của mày.</p>
-        </div>
-        <div class="audio-panel"><span>♪</span><strong>ORIGINAL CAT GROOVES</strong><p>Nhạc lofi vui nhộn được tạo trực tiếp bằng Web Audio, không có file tải ngoài. Có thể chỉnh nhạc & SFX riêng.</p><button @click="showSettings()">Chỉnh âm lượng ↗</button></div>
-      </aside>
+      <div class="keyboard-dock" aria-hidden="true"><span>MOVE <kbd>A</kbd><kbd>D</kbd></span><span>JUMP <kbd>SPACE</kbd></span><span>SMACK <kbd>J</kbd></span><span>HIDE <kbd>C</kbd></span><span>RUN <kbd>SHIFT</kbd></span><span>PAUSE <kbd>ESC</kbd></span></div>
     </section>
   </main>
-
-  <footer class="footer wrap"><div><b>catastrophe<span>.</span></b><small>A game with absolutely no regrets. © 2026</small></div><div>MADE WITH <a href="https://gyosjs.dev" target="_blank" rel="noopener noreferrer">GYOSJS</a> · HTML / CSS / JS</div></footer>
 
   <div class="modal-backdrop" g-show="!!menu()">
     <section class="modal" role="dialog" aria-modal="true" aria-label="Game menu">
@@ -137,6 +153,19 @@
         <div class="keys-table"><div><b>A / D, ← / →</b><span>Chạy trái/phải</span></div><div><b>W / SPACE / ↑</b><span>Nhảy lên bệ</span></div><div><b>J / K / X</b><span>Tát đồ ở trước mặt</span></div><div><b>C / S</b><span>Giữ để núp trong vùng xanh</span></div><div><b>SHIFT</b><span>Chạy nhanh</span></div><div><b>P / ESC</b><span>Tạm dừng</span></div></div>
         <p>Trên điện thoại dùng các phím cảm ứng phía dưới màn chơi. Đồ to có 2 chấm máu — tát 2 lần mới vỡ.</p>
         <button class="button play-button modal-confirm" @click="closeMenu()">HIỂU RỒI, QUẬY TIẾP!</button>
+      </div>
+      <div g-show="menu()==='chapters'">
+        <p class="overline">LEVEL SELECT / CAMPAIGN</p>
+        <h2>Chọn một hiện trường 🐈</h2>
+        <p>Hoàn thành màn trước để mở khóa màn kế tiếp. Nếu đang chơi, đổi màn sẽ bắt đầu một lượt mới.</p>
+        <div class="chapter-selector">
+          <button *for="entry in roomOptions()" g-key="entry.id" :class="roomStyle(entry)" :disabled="entry.locked" @click="selectRoom(entry.id)">
+            <span class="chapter-number">0{entry.id+1}</span><span class="chapter-name">{entry.name}</span>
+            <span class="chapter-icon">{entry.locked?'🔒':entry.id===level()?'●':'↗'}</span>
+          </button>
+        </div>
+        <p class="chapter-footnote">Kỷ lục và màn đã mở khóa được lưu trong trình duyệt của mày.</p>
+        <button class="button outline-button modal-confirm" @click="closeMenu()">← QUAY LẠI GAME</button>
       </div>
       <div g-show="menu()==='settings'">
         <p class="overline">AUDIO & FEEL</p><h2>Bật nhạc lên nào 🎵</h2>
