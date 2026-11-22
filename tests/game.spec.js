@@ -183,7 +183,14 @@ test('two simultaneous touch contacts switch direction correctly and cancel safe
     await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input.left)).toBe(true);
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[a,d]});
     await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:false,right:true});
-    await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[a]});
+    // CDP touchEnd requires an EMPTY touchPoints array; a nonempty one is not
+    // a valid way to simulate lifting just the second finger. A targeted
+    // pointerup checks that one finger can lift while the first stays down.
+    const rightId=await page.evaluate(()=>{
+      const right=window.__catastrophe.inputs().sources.find(([,held])=>held.action==='right');
+      return Number(right[0].slice('pointer:'.length));
+    });
+    await page.locator('#mobile-right').dispatchEvent('pointerup',{pointerId:rightId,pointerType:'touch'});
     await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:true,right:false});
     await cdp.send('Input.dispatchTouchEvent',{type:'touchCancel',touchPoints:[]});
     await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:false,right:false});
