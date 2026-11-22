@@ -2,6 +2,7 @@ import * as Gyos from 'gyosjs/csp';
 import { W, LEVELS, ROUND_SECONDS, createGame, start, tick, jump, attack, setInput, progress, clamp } from './model.js';
 import { Scene } from './scene.js';
 import { Soundtrack } from './audio.js';
+import { ACTIONS, InputManager, keyAction, keySource } from './input.js';
 import './style.css';
 
 const STORE='catastrophe.v2.settings',BEST='catastrophe.v2.records';
@@ -48,6 +49,20 @@ Gyos.scope('Cat',()=>{
     phase()==='caught'?'Mày phá hơi hăng rồi. Lần sau núp dưới sofa nha.':
     'Bình tĩnh thôi. Hãy kiếm combo và mở cửa sớm hơn.');
   const roomOptions=computed(()=>LEVELS.map((l,i)=>({id:i,name:l.name,locked:i>unlocked()})));
+  // A source is a physical key or a pointer ID, never just a shared bool.
+  // This preserves keys held together and resolves left/right by most recent press.
+  const pressedKeys=new Set();
+  const inputManager=new InputManager(state=>{
+    const enabled=game.phase==='playing'&&!paused()&&!menu();
+    for(const action of ACTIONS)setInput(game,action,enabled&&state[action]);
+    updatePadState();
+  });
+  function updatePadState(){
+    for(const [id,action] of [['mobile-left','left'],['mobile-right','right'],['mobile-hide','crouch'],['mobile-sprint','sprint']]){
+      const element=document.getElementById(id);
+      if(element)element.classList.toggle('is-held',inputManager.isHeld(action));
+    }
+  }
 
   function sync(){
     const p=progress(game);
@@ -112,10 +127,16 @@ Gyos.scope('Cat',()=>{
     if(jump(game)){soundtrack.sfx('jump');scene.effect('dust',game.player.x,game.player.y); }
   }
   function setControl(key,down){
-    if(game.phase==='playing'&&!paused()&&!menu())setInput(game,key,down);
-    else setInput(game,key,false);
+    const source='debug:'+key;
+    if(down&&game.phase==='playing'&&!paused()&&!menu())inputManager.hold(source,key);
+    else inputManager.release(source);
   }
-  function clearInput(){for(const k of Object.keys(game.input))setInput(game,k,false);}
+  function clearInput(){
+    inputManager.clear();
+    pressedKeys.clear();
+    for(const key of Object.keys(game.input))setInput(game,key,false);
+    updatePadState();
+  }
   function pause(on=!paused()){
     if(game.phase!=='playing')return;
     paused(!!on);clearInput();
@@ -140,6 +161,10 @@ Gyos.scope('Cat',()=>{
     sync();
     // start() is invoked on a real button click; audio context unlocks in this gesture.
     void soundtrack.start().catch(()=>notice('Trình duyệt chặn âm thanh; thử click lại nút nhạc.'));
+    // On phones the title/intro should not sit between the player and controls.
+    if(matchMedia('(max-width:780px)').matches){
+      requestAnimationFrame(()=>document.querySelector('.shell')?.scrollIntoView({block:'start',behavior:'auto'}));
+    }
   }
   function restart(){
     const index=game.levelIndex,carry=Math.max(0,game.score-game.levelScore);
@@ -192,32 +217,59 @@ Gyos.scope('Cat',()=>{
     }).catch(()=>notice('Không thể bật loa. Kiểm tra quyền âm thanh và volume hệ thống.'));
   }
   function codeKey(event,down){
+    const action=keyAction(event);
+    if(!action)return;
+    const source=keySource(event);
+    // Keyup must always be processed, even when focus/menus/modifiers change.
+    // Otherwise a held key can survive until the next round.
+    if(!down){
+      inputManager.release(source);
+      pressedKeys.delete(source);
+      return;
+    }
     if(event.isComposing||event.ctrlKey||event.metaKey||event.altKey)return;
     if(event.target instanceof Element&&event.target.closest('input,textarea,select'))return;
-    const k=event.key.toLowerCase();
-    if(menu()){if(k==='escape'&&!down)closeMenu();return;}
-    if(['arrowleft','arrowright','arrowup',' ','j','k','x','a','d','w','c','s','shift','p','escape'].includes(k))event.preventDefault();
-    if(k==='a'||k==='arrowleft')setControl('left',down);
-    if(k==='d'||k==='arrowright')setControl('right',down);
-    if(k==='c'||k==='s'||k==='arrowdown')setControl('crouch',down);
-    if(k==='shift')setControl('sprint',down);
-    if(!down)return;
-    if(k==='w'||k===' '||k==='arrowup'){if(!event.repeat)leap();}
-    if(k==='j'||k==='k'||k==='x'){if(!event.repeat)swipe();}
-    if(k==='p'||k==='escape'){if(!event.repeat)pause();}
+    event.preventDefault(); // Includes ArrowDown: don't scroll the page while crouching.
+    if(menu()){
+      if(action==='pause'&&event.code==='Escape'&&!event.repeat)closeMenu();
+      return;
+    }
+    // OS key repeat must neither retrigger attacks nor steal movement priority.
+    if(event.repeat||pressedKeys.has(source))return;
+    pressedKeys.add(source);
+    if(ACTIONS.includes(action)){
+      if(game.phase==='playing'&&!paused())inputManager.hold(source,action);
+    }else if(action==='jump')leap();
+    else if(action==='attack')swipe();
+    else if(action==='pause')pause();
   }
   function bindButtons(){
-    // Hold controls work on touch. Pointer capture prevents stuck movement.
-    for(const [id,key] of [['mobile-left','left'],['mobile-right','right'],['mobile-hide','crouch'],['mobile-sprint','sprint']]){
+    // Track each pointer individually. Global release + capture loss are the safety net
+    // when a finger slides away, a gesture is cancelled or two fingers overlap.
+    for(const [id,action] of [['mobile-left','left'],['mobile-right','right'],['mobile-hide','crouch'],['mobile-sprint','sprint']]){
       const el=document.getElementById(id);if(!el)continue;
-      el.addEventListener('pointerdown',e=>{
-        if(game.phase!=='playing')return;
-        e.preventDefault();el.setPointerCapture(e.pointerId);setControl(key,true);
+      el.addEventListener('pointerdown',event=>{
+        if(game.phase!=='playing'||paused()||menu())return;
+        if(event.pointerType==='mouse'&&event.button!==0)return;
+        event.preventDefault();
+        try{el.setPointerCapture(event.pointerId);}catch{/* Global release is still registered. */}
+        inputManager.hold('pointer:'+event.pointerId,action);
       },{signal:abort.signal});
-      const release=()=>setControl(key,false);
-      el.addEventListener('pointerup',release,{signal:abort.signal});
-      el.addEventListener('pointercancel',release,{signal:abort.signal});
-      el.addEventListener('lostpointercapture',release,{signal:abort.signal});
+      el.addEventListener('pointerup',event=>inputManager.releasePointer(event.pointerId),{signal:abort.signal});
+      el.addEventListener('pointercancel',event=>inputManager.releasePointer(event.pointerId),{signal:abort.signal});
+      el.addEventListener('lostpointercapture',event=>inputManager.releasePointer(event.pointerId),{signal:abort.signal});
+      el.addEventListener('contextmenu',event=>event.preventDefault(),{signal:abort.signal});
+    }
+    // Actions fire once on pointerdown, avoiding synthesized touch click/double hit.
+    // Screen-reader and keyboard activation is retained through detail === 0 click.
+    for(const [id,perform] of [['mobile-jump',leap],['mobile-attack',swipe]]){
+      const el=document.getElementById(id);if(!el)continue;
+      el.addEventListener('pointerdown',event=>{
+        if(event.pointerType==='mouse'&&event.button!==0)return;
+        event.preventDefault();perform();
+      },{signal:abort.signal});
+      el.addEventListener('click',event=>{if(event.detail===0)perform();},{signal:abort.signal});
+      el.addEventListener('contextmenu',event=>event.preventDefault(),{signal:abort.signal});
     }
     // Canvas clicks attack only from the cat's actual location.
     const canvas=document.getElementById('world');
@@ -265,7 +317,8 @@ Gyos.scope('Cat',()=>{
     hidden,zoomies,alert,best,unlocked,paused,menu,status,
     musicVolume,effectsVolume,muted,reduced,
     levelInfo,mission,comboLabel,dangerLabel,statusType,controlsHint,resultsTitle,resultsText,roomOptions,
-    format,scoreText:()=>format(score()),bestText:()=>format(best()),
+    format,appClass:()=>phase()==='playing'?'is-playing':'',
+    scoreText:()=>format(score()),bestText:()=>format(best()),
     dangerStyle:()=>'width:'+suspicion()+'%',
     musicPercent:()=>Math.round(musicVolume()*100),effectsPercent:()=>Math.round(effectsVolume()*100),
     isResult:()=>['cleared','caught','timeout','won'].includes(phase()),
@@ -283,6 +336,10 @@ Gyos.scope('Cat',()=>{
       media.addEventListener('change',()=>{if(scene)scene.reduced=reduced()||media.matches;},{signal:abort.signal});
       window.addEventListener('keydown',e=>codeKey(e,true),{signal:abort.signal});
       window.addEventListener('keyup',e=>codeKey(e,false),{signal:abort.signal});
+      window.addEventListener('pointerup',e=>inputManager.releasePointer(e.pointerId),{signal:abort.signal});
+      window.addEventListener('pointercancel',e=>inputManager.releasePointer(e.pointerId),{signal:abort.signal});
+      window.addEventListener('pagehide',clearInput,{signal:abort.signal});
+      window.addEventListener('orientationchange',clearInput,{signal:abort.signal});
       window.addEventListener('blur',()=>{clearInput();if(game.phase==='playing')pause(true);},{signal:abort.signal});
       document.addEventListener('visibilitychange',()=>{
         if(document.hidden){clearInput();if(game.phase==='playing')pause(true);}
@@ -292,6 +349,7 @@ Gyos.scope('Cat',()=>{
         snapshot:()=>structuredClone(game),
         reset:restart,begin,swipe,leap,
         press:(key,on)=>setControl(key,on),
+        inputs:()=>({sources:[...inputManager.sources.entries()],state:inputManager.snapshot(),keys:[...pressedKeys]}),
         audio:()=>({state:soundtrack.ctx?.state||'not-started',playing:soundtrack.playing,muted:soundtrack.muted})
       };
       raf=requestAnimationFrame(loop);
