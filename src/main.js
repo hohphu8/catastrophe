@@ -317,7 +317,7 @@ Gyos.scope('Cat',()=>{
     hidden,zoomies,alert,best,unlocked,paused,menu,status,
     musicVolume,effectsVolume,muted,reduced,
     levelInfo,mission,comboLabel,dangerLabel,statusType,controlsHint,resultsTitle,resultsText,roomOptions,
-    format,appClass:()=>phase()==='playing'?'is-playing':'',
+    format,appClass:()=>phase()==='ready'?'':'is-playing',
     scoreText:()=>format(score()),bestText:()=>format(best()),
     dangerStyle:()=>'width:'+suspicion()+'%',
     musicPercent:()=>Math.round(musicVolume()*100),effectsPercent:()=>Math.round(effectsVolume()*100),
