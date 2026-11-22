@@ -10,12 +10,12 @@ permissions:
   id-token: write
 
 concurrency:
-  group: catastrophe-v2-${{ github.ref }}
+  group: catastrophe-controls-fix-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     outputs:
       pages_enabled: ${{ steps.pages.outputs.enabled }}
     steps:
@@ -59,7 +59,7 @@ jobs:
   deploy:
     needs: build
     if: needs.build.outputs.pages_enabled == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     environment:
       name: github-pages
     steps:
