@@ -72,3 +72,47 @@ test('keyboard bindings use physical event.code and support all movement alterna
   assert.equal(keyAction({code:'Unidentified',key:'d'}),'right');
   assert.equal(keySource({code:'KeyA',key:'a'}),'key:KeyA');
 });
+
+test('a keyup lost during rapid A/D repeats cannot leave movement stuck forever',()=>{
+  let now=1000;
+  const input=new InputManager(()=>{},()=>now);
+  input.hold('key:KeyA','left');
+  now=1010;input.hold('key:KeyD','right');
+  now=1050;input.heartbeat('key:KeyD'); // auto-repeat from the browser
+  now=1100;input.heartbeat('key:KeyA');
+  assert.deepEqual(input.snapshot(),{left:false,right:true,crouch:false,sprint:false});
+  // Repeats for D stop; the browser swallowed D's keyup. A is still
+  // receiving repeats, so expiry must restore A, not leave right held.
+  now=1820;input.heartbeat('key:KeyA');
+  now=2120;
+  assert.deepEqual(input.expireKeyboard(now),['key:KeyD']);
+  assert.deepEqual(input.snapshot(),{left:true,right:false,crouch:false,sprint:false});
+  input.release('key:KeyA');
+  assert.deepEqual(input.snapshot(),{left:false,right:false,crouch:false,sprint:false});
+});
+
+test('keyboard watchdog tolerates slow initial repeat then expires abandoned hold',()=>{
+  let now=100;
+  const input=new InputManager(()=>{},()=>now);
+  input.hold('key:KeyD','right');
+  now=2800;
+  assert.deepEqual(input.expireKeyboard(now),[]);
+  assert.equal(input.snapshot().right,true);
+  now=3201;
+  assert.deepEqual(input.expireKeyboard(now),['key:KeyD']);
+  assert.equal(input.snapshot().right,false);
+  assert.deepEqual(input.expireKeyboard(now),[]);
+});
+
+test('key heartbeat does not steal priority from newer direction',()=>{
+  let now=0;
+  const input=new InputManager(()=>{},()=>now);
+  input.hold('key:KeyA','left');
+  now=100;input.hold('key:KeyD','right');
+  now=150;assert.equal(input.heartbeat('key:KeyA'),true);
+  assert.equal(input.snapshot().right,true);
+  now=200;assert.equal(input.heartbeat('pointer:99'),false);
+  now=250;assert.equal(input.heartbeat('key:missing'),false);
+  input.release('key:KeyD');
+  assert.equal(input.snapshot().left,true);
+});
