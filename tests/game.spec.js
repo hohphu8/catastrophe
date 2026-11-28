@@ -267,3 +267,64 @@ test('ultrawide world is letterboxed without changing character geometry',async(
   expect(dimensions.visibleLeftMargin).toBeGreaterThan(150);
   expect(errors).toEqual([]);
 });
+
+test('CAT STATUS and pause/restart live in header, never cover the playable floor',async({page})=>{
+  await page.setViewportSize({width:1366,height:768});
+  const errors=await boot(page);
+  await page.getByRole('button',{name:/BẮT ĐẦU QUẬY/}).click();
+  await expect(page.locator('.gamebar')).toHaveCount(0);
+  const values=await page.evaluate(()=>{
+    const header=document.querySelector('.site-top').getBoundingClientRect();
+    const status=document.querySelector('.header-status').getBoundingClientRect();
+    const pause=document.querySelector('.top-pause').getBoundingClientRect();
+    const restart=document.querySelector('.top-restart').getBoundingClientRect();
+    const play=document.querySelector('#world').getBoundingClientRect();
+    return {headerBottom:header.bottom,statusBottom:status.bottom,pauseBottom:pause.bottom,
+      restartBottom:restart.bottom,playBottom:play.bottom};
+  });
+  expect(values.statusBottom).toBeLessThanOrEqual(values.headerBottom);
+  expect(values.pauseBottom).toBeLessThanOrEqual(values.headerBottom);
+  expect(values.restartBottom).toBeLessThanOrEqual(values.headerBottom);
+  expect(values.playBottom).toBeGreaterThan(values.headerBottom+450);
+  await page.locator('.top-pause').click();
+  await expect(page.locator('.pause-card')).toBeVisible();
+  await page.locator('.top-pause').click();
+  await expect(page.locator('.pause-card')).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('lost keyup during direction spam plus mouse click is released automatically',async({page})=>{
+  await page.setViewportSize({width:1366,height:768});
+  const errors=await boot(page);
+  await page.getByRole('button',{name:/BẮT ĐẦU QUẬY/}).click();
+
+  for(let i=0;i<4;i++){
+    await page.keyboard.down('a');
+    await page.keyboard.down('d');
+    await page.locator('#world').click({position:{x:730,y:390}});
+    await page.keyboard.up('a');
+    await page.keyboard.up('d');
+  }
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input)).toMatchObject({left:false,right:false});
+
+  // Deliberately omit the keyup; a repeat heartbeat is the last proof that D
+  // was held. The watchdog must recover from that missing browser event.
+  await page.keyboard.down('d');
+  await page.evaluate(()=>window.dispatchEvent(new KeyboardEvent('keydown',{
+    key:'d',code:'KeyD',repeat:true,bubbles:true
+  })));
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input.right)).toBe(true);
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input.right),{timeout:3000,intervals:[100,200,250]}).toBe(false);
+  const frozen=await page.evaluate(()=>window.__catastrophe.snapshot().player.x);
+  await page.waitForTimeout(250);
+  const after=await page.evaluate(()=>window.__catastrophe.snapshot().player.x);
+  expect(after).toBeCloseTo(frozen,0);
+
+  // A fresh non-repeated press starts a new hold even after stale recovery.
+  await page.keyboard.up('d');
+  await page.keyboard.down('a');
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input.left)).toBe(true);
+  await page.keyboard.up('a');
+  await expect.poll(()=>page.evaluate(()=>window.__catastrophe.snapshot().input.left)).toBe(false);
+  expect(errors).toEqual([]);
+});
