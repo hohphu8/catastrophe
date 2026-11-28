@@ -24,8 +24,9 @@ export function keySource(event) {
   return 'key:'+ (event.code || String(event.key||'').toLowerCase());
 }
 export class InputManager {
-  constructor(onChange=()=>{}) {
+  constructor(onChange=()=>{}, clock=()=>performance.now()) {
     this.onChange=onChange;
+    this.clock=clock;
     this.sources=new Map();
     this.order=0;
     this.state={left:false,right:false,crouch:false,sprint:false};
@@ -34,9 +35,35 @@ export class InputManager {
     if(!ACTIONS.includes(action)||!source)return false;
     const old=this.sources.get(source);
     if(old?.action===action)return false; // auto-repeat doesn't steal direction priority
-    this.sources.set(source,{action,order:++this.order});
+    this.sources.set(source,{action,order:++this.order,lastSeen:this.clock(),repeatSeen:false});
     this.refresh();
     return true;
+  }
+  // Browser key-repeat events are proof a key is STILL held. Refresh its
+  // lease without taking priority away from the last pressed direction.
+  heartbeat(source) {
+    const entry=this.sources.get(source);
+    if(!entry||!source.startsWith('key:'))return false;
+    entry.lastSeen=this.clock();
+    entry.repeatSeen=true;
+    return true;
+  }
+  // Browsers/OSes can lose keyup during rapid keyboard+mouse input. Recover
+  // automatically instead of letting the cat run until it reaches a wall.
+  // A long grace period without ANY repeat tolerates slower/disabled repeat;
+  // once repeats arrive, a missing stream is detected much sooner.
+  expireKeyboard(now=this.clock(), graceFirst=3000, graceRepeat=1000) {
+    const expired=[];
+    for(const [source,entry] of this.sources) {
+      if(!source.startsWith('key:'))continue;
+      const ttl=entry.repeatSeen?graceRepeat:graceFirst;
+      if(now-entry.lastSeen>ttl) {
+        this.sources.delete(source);
+        expired.push(source);
+      }
+    }
+    if(expired.length)this.refresh();
+    return expired;
   }
   release(source) {
     if(!this.sources.delete(source))return false;
