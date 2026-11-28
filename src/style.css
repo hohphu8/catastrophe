@@ -309,3 +309,36 @@ kbd{display:inline-grid;place-items:center;min-width:18px;min-height:19px;paddin
   .start-heading .start-subtitle{margin:6px 0}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}}
+
+/* Game HUD cleanup: status and pause/restart belong to the top chrome,
+   never on the playable floor where they cover the cat or objects. */
+.header-room{flex:1;justify-content:center;min-width:0;gap:10px}
+.header-status{min-width:0;max-width:min(250px,26vw);display:flex;align-items:center;gap:7px;overflow:hidden;border-left:1px solid #425b4e;padding-left:12px;color:#d4e8d1}
+.header-status>span:first-child{flex:0 0 auto;color:#ffc18a;font-size:15px}
+.header-status>span:last-child{display:block;min-width:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#abcab3;font-size:11px;font-weight:900}
+.top-pause,.top-restart{background:#274c3c;border-color:#70947b}
+.top-pause:hover:not(:disabled),.top-restart:hover:not(:disabled){background:#34654d}
+.top-pause:disabled{opacity:.45}
+@media(max-width:1470px){
+  .header-status{max-width:170px}
+  .top-btn{padding-left:10px;padding-right:10px}
+}
+@media(max-width:1250px){
+  .header-status{max-width:120px}
+  .header-room{gap:7px}
+  .top-btn{padding-left:8px;padding-right:8px}
+  .header-room .chapter-kicker{display:none}
+}
+@media(max-width:1100px){
+  .header-status{display:none}
+  .header-room{justify-content:flex-start}
+  .top-actions{gap:5px}
+}
+@media(max-width:780px){
+  .header-room{display:none}
+  .top-restart{display:none} /* restart remains available inside the pause menu */
+  .top-pause{background:#315746;border-color:#8aaf92}
+}
+@media(max-width:380px){
+  .help-trigger{display:none} /* instructions still available from start / pause */
+}
