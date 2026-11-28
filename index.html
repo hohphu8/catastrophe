@@ -23,10 +23,11 @@
     <div class="header-room">
       <span class="chapter-kicker">LEVEL 0{level()+1} <span>/ 03</span></span>
       <strong>{levelInfo().name}</strong>
-      <span class="header-dot">◆</span>
-      <span class="header-brief">{levelInfo().subtitle}</span>
+      <div class="header-status"><span>✦</span><span role="status" aria-live="polite" title="Cat Status">{status()}</span></div>
     </div>
     <div class="top-actions">
+      <button class="top-btn top-pause" @click="pauseClick()" :disabled="phase()!=='playing'" aria-label="Tạm dừng hoặc tiếp tục game">{paused()?'▶':'Ⅱ'} <span>{paused()?'Resume':'Pause'}</span></button>
+      <button class="top-btn top-restart" @click="restart()" aria-label="Restart game">↺ <span>Restart</span></button>
       <button class="top-btn sound-toggle" @click="toggleSound()" :aria-label="muted() ? 'Bật âm thanh' : 'Tắt âm thanh'" :title="muted() ? 'Bật âm thanh' : 'Tắt âm thanh'">{muted()?'🔇':'🔊'}</button>
       <button class="top-btn" @click="showSettings()" aria-label="Âm thanh và cài đặt">⚙ <span>Cài đặt</span></button>
       <button class="top-btn" @click="showChapters()">▦ <span>Chọn màn</span></button>
@@ -61,17 +62,6 @@
             <div class="suspicion-top"><span>OWNER ALERT</span><strong>{suspicion()}%</strong></div>
             <div class="danger-track"><div class="danger-fill" :style="dangerStyle()"></div></div>
             <small>{dangerLabel()}</small>
-          </div>
-        </div>
-
-        <div class="gamebar">
-          <div class="gamebar-message">
-            <span class="notification-icon" aria-hidden="true">✦</span>
-            <div><strong>CAT STATUS</strong><p role="status" aria-live="polite">{status()}</p></div>
-          </div>
-          <div class="gamebar-actions">
-            <button class="tiny-btn" @click="pauseClick()" :disabled="phase()!=='playing'">{paused()?'▶ Resume':'Ⅱ Pause'}</button>
-            <button class="tiny-btn" @click="restart()">↺ Restart</button>
           </div>
         </div>
 
