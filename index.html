@@ -26,7 +26,7 @@
       <div class="header-status"><span>✦</span><span role="status" aria-live="polite" title="Cat Status">{status()}</span></div>
     </div>
     <div class="top-actions">
-      <button class="top-btn top-pause" @click="pauseClick()" :disabled="phase()!=='playing'" aria-label="Tạm dừng hoặc tiếp tục game">{paused()?'▶':'Ⅱ'} <span>{paused()?'Resume':'Pause'}</span></button>
+      <button class="top-btn top-pause" @click="pauseClick()" :disabled="phase()!=='playing'" :aria-label="paused() ? 'Resume game' : 'Pause game'">{paused()?'▶':'Ⅱ'} <span>{paused()?'Resume':'Pause'}</span></button>
       <button class="top-btn top-restart" @click="restart()" aria-label="Restart game">↺ <span>Restart</span></button>
       <button class="top-btn sound-toggle" @click="toggleSound()" :aria-label="muted() ? 'Bật âm thanh' : 'Tắt âm thanh'" :title="muted() ? 'Bật âm thanh' : 'Tắt âm thanh'">{muted()?'🔇':'🔊'}</button>
       <button class="top-btn" @click="showSettings()" aria-label="Âm thanh và cài đặt">⚙ <span>Cài đặt</span></button>
