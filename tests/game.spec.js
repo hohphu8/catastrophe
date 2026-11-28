@@ -49,7 +49,7 @@ test('pausing freezes timer, sound settings persist and restart resets stage',as
   expect(Math.abs(t2-t1)).toBeLessThan(.03);
   await page.getByRole('button',{name:/CHƠI TIẾP/}).click();
   await expect(page.locator('.pause-card')).toBeHidden();
-  await page.locator('.top-actions button').nth(1).click();
+  await page.getByRole('button',{name:'Âm thanh và cài đặt'}).click();
   await expect(page.locator('#music-volume')).toBeVisible();
   await page.locator('#music-volume').evaluate(el=>{
     el.value='85';el.dispatchEvent(new Event('input',{bubbles:true}));
