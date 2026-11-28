@@ -225,8 +225,8 @@ Gyos.scope('Cat',()=>{
     const action=keyAction(event);
     if(!action)return;
     const source=keySource(event);
-    // Keyup must always be processed, even when focus/menus/modifiers change.
-    // Otherwise a held key can survive until the next round.
+    // Process releases regardless of modifiers, focus or menu state. If a keyup
+    // never arrives, InputManager also expires its orphaned keyboard hold.
     if(!down){
       inputManager.release(source);
       pressedKeys.delete(source);
@@ -234,13 +234,22 @@ Gyos.scope('Cat',()=>{
     }
     if(event.isComposing||event.ctrlKey||event.metaKey||event.altKey)return;
     if(event.target instanceof Element&&event.target.closest('input,textarea,select'))return;
-    event.preventDefault(); // Includes ArrowDown: don't scroll the page while crouching.
+    event.preventDefault();
     if(menu()){
       if(action==='pause'&&event.code==='Escape'&&!event.repeat)closeMenu();
       return;
     }
-    // OS key repeat must neither retrigger attacks nor steal movement priority.
-    if(event.repeat||pressedKeys.has(source))return;
+    if(event.repeat){
+      // A repeat refreshes liveness; it MUST NOT change left/right priority.
+      if(pressedKeys.has(source))inputManager.heartbeat(source);
+      return;
+    }
+    // A fresh non-repeated down is authoritative, even if an earlier keyup was
+    // lost and the old entry is still in the Set. Restore correct priority.
+    if(pressedKeys.has(source)){
+      pressedKeys.delete(source);
+      inputManager.release(source);
+    }
     pressedKeys.add(source);
     if(ACTIONS.includes(action)){
       if(game.phase==='playing'&&!paused())inputManager.hold(source,action);
@@ -299,6 +308,10 @@ Gyos.scope('Cat',()=>{
     previous=now;
     if(!document.hidden&&scene){
       if(game.phase==='playing'&&!paused()&&!menu()){
+        // This detects missing keyup events during rapid A/D + Space + mouse
+        // combinations, avoiding movement that continues indefinitely.
+        const expired=inputManager.expireKeyboard(now);
+        for(const source of expired)pressedKeys.delete(source);
         const events=tick(game,delta);
         if(game.ownerAlert&&!wasAlert&&events.every(e=>e.kind!=='spotted')){
           soundtrack.sfx('spot');notice('Á! Sen vừa quay đầu nhìn về phía mày!');
@@ -341,8 +354,10 @@ Gyos.scope('Cat',()=>{
       const media=matchMedia('(prefers-reduced-motion:reduce)');
       media.addEventListener('change',()=>{if(scene)scene.reduced=reduced()||media.matches;},{signal:abort.signal});
       document.addEventListener('fullscreenchange',()=>isFullscreen(!!document.fullscreenElement),{signal:abort.signal});
-      window.addEventListener('keydown',e=>codeKey(e,true),{signal:abort.signal});
-      window.addEventListener('keyup',e=>codeKey(e,false),{signal:abort.signal});
+      // Capture input before UI buttons/links receive it. A click or changing
+      // focus within the app must not steal the eventual keyup from gameplay.
+      window.addEventListener('keydown',e=>codeKey(e,true),{capture:true,signal:abort.signal});
+      window.addEventListener('keyup',e=>codeKey(e,false),{capture:true,signal:abort.signal});
       window.addEventListener('pointerup',e=>inputManager.releasePointer(e.pointerId),{signal:abort.signal});
       window.addEventListener('pointercancel',e=>inputManager.releasePointer(e.pointerId),{signal:abort.signal});
       window.addEventListener('pagehide',clearInput,{signal:abort.signal});
